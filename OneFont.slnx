@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OneFont/OneFont.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OneFont.Tests/OneFont.Tests.csproj" />
+    <Project Path="tests/OneFont.AotSmoke/OneFont.AotSmoke.csproj" />
+  </Folder>
+  <Folder Name="/fuzz/">
+    <Project Path="fuzz/OneFont.Fuzz/OneFont.Fuzz.csproj" />
+  </Folder>
+</Solution>
