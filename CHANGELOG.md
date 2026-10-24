@@ -4,6 +4,13 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+- Added `TextShaping.ShapeCodePoints`: shapes a run given as code points with caller-supplied cluster values and a script carried from run to run (`ref uint script`), so digits and spaces after Arabic take the Arabic script. It returns `CodePointGlyph` values in the shaper's own order, each with its code point and cluster.
+- Added `ShapedRun.Origins` (`ShapedGlyphOrigin`): for every glyph of a run the first code point it stands for, its cluster offset and its position in the shaper's order before clusters were put in logical order.
+- Added code point bidi: `TextShaping.ResolveBidiLevels` (keeps the rule X9 marker `TextShaping.BidiRemoved` instead of filling it) and `TextShaping.ResetTrailingWhitespace` (rule L1 per line). `GetVisualOrder(levels, order)` accepts levels with the marker and returns how many characters are shown.
+- Added `TextSegmentation.IsEastAsianWide`, `FillLineBreakOpportunities` and `FillGraphemeStarts` (one byte per UTF-16 offset), and `UnicodeProperties.GetJoiningKind` / `IsSyllableScript`.
+- Added `FontFace.GetTable` and `HasTable`: the raw bytes of any table (`COLR`, `CPAL`, `vhea`, `vmtx`, `VORG`, `fpgm`, `prep`, `cvt ` and so on).
+- Existing behaviour and output are unchanged; the 1.0.0 digests still match.
+
 ## [1.1.0] - 2026-10-24
 
 - Added `ShapedRun`, `ShapedClusterRange` and the `TextShaping.ShapeRun(text, face, result, ...)` and `FontFallbackChain.ShapeRun(text, result, ...)` overloads: the same clusters and glyphs as the list API in flat, reusable arrays, with no allocation per call once warm. The list API is built on the same path and allocates under a third as much as before (about 75 bytes per character instead of about 270 for Latin).

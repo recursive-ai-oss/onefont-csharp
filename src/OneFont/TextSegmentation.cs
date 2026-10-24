@@ -77,4 +77,40 @@ public static class TextSegmentation
     /// <param name="text">Text that starts at a cluster boundary.</param>
     /// <returns>The length, at least 1 (an unpaired surrogate is its own cluster); 0 for empty text.</returns>
     public static int GetGraphemeLength(ReadOnlySpan<char> text) => Graphemes.NextLength(text);
+
+    /// <summary>Gets whether a code point has East_Asian_Width Fullwidth, Wide or Halfwidth (ideographs, kana, Hangul syllables, fullwidth forms and the like).</summary>
+    /// <param name="codePoint">The code point; values outside Unicode give <see langword="false"/>.</param>
+    /// <returns><see langword="true"/> for such a character.</returns>
+    public static bool IsEastAsianWide(int codePoint) => (uint)codePoint <= 0x10FFFF && LineBreaker.IsEastAsianWide(codePoint);
+
+    /// <summary>
+    /// Fills line break opportunities like <see cref="GetLineBreakOpportunities(ReadOnlySpan{char}, Span{LineBreakOpportunity})"/>, as plain
+    /// bytes: 0 none, 1 allowed, 2 mandatory (the values of <see cref="LineBreakOpportunity"/>).
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="opportunities">Receives <c>text.Length + 1</c> entries, one per UTF-16 offset; it holds at least that many. Further entries are not touched.</param>
+    /// <exception cref="ArgumentException"><paramref name="opportunities"/> is shorter than <c>text.Length + 1</c>.</exception>
+    public static void FillLineBreakOpportunities(ReadOnlySpan<char> text, Span<byte> opportunities)
+    {
+        if (opportunities.Length < text.Length + 1)
+        {
+            throw new ArgumentException("The opportunities buffer is shorter than the text plus one.", nameof(opportunities));
+        }
+
+        LineBreaker.Fill(text, opportunities);
+    }
+
+    /// <summary>Marks where grapheme clusters start, as plain bytes, one per UTF-16 offset.</summary>
+    /// <param name="text">The text.</param>
+    /// <param name="starts">Receives <c>text.Length + 1</c> entries: 1 at an offset where a cluster starts (and always at <c>text.Length</c>), 0 inside a cluster; it holds at least that many. Further entries are not touched.</param>
+    /// <exception cref="ArgumentException"><paramref name="starts"/> is shorter than <c>text.Length + 1</c>.</exception>
+    public static void FillGraphemeStarts(ReadOnlySpan<char> text, Span<byte> starts)
+    {
+        if (starts.Length < text.Length + 1)
+        {
+            throw new ArgumentException("The starts buffer is shorter than the text plus one.", nameof(starts));
+        }
+
+        Graphemes.Fill(text, starts);
+    }
 }

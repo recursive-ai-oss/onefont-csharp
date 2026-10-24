@@ -4,7 +4,7 @@
 
 | Target | Input | Surface |
 |---|---|---|
-| `shape` | flags, a font pick, a short text, then optionally a font | loading a face, shaping with features, language and direction, outlines, bidi levels and order, line breaks, graphemes, fallback; the clusters must follow each other and cover the text |
+| `shape` | flags, a font pick, a short text, then optionally a font | loading a face, shaping with features, language and direction, outlines, bidi levels and order, line breaks, graphemes, fallback, the code point entry points (carried script, glyph origins, bidi with removed marker, byte fills, properties, raw tables); the clusters must follow each other and cover the text |
 
 Only `FontFormatException` may come out of a library call. Any other exception, a failed invariant, a hang (`-timeout`) or a memory blow-up (`-rss_limit_mb`) is a finding.
 
