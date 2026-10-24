@@ -85,6 +85,17 @@ Checked through its public API with 17 Noto subsets (`tests/testdata/fonts/Noto*
 
 A font with the older v1 script tags only is shaped through the v1 tags; the v1-specific behaviors of older engines are not reproduced.
 
+## Callers that split text into runs themselves
+
+A layout that cuts a paragraph into runs by direction, face or style, and keeps its own cluster numbers, uses the code point entry points. They give the same results the clustered API is built on.
+
+- **`TextShaping.ShapeCodePoints(face, codePoints, clusters, output, rightToLeft, options, ref script)`** shapes one run and appends `CodePointGlyph` values (glyph id, the caller's cluster value, the first code point, advance, offsets) in the order the shaper produced them. `script` is the script of the text before the run, as an OpenType script tag, 0 at the start of a paragraph: characters with no script of their own (spaces, digits, punctuation) take it, and it is updated to the script the run ends in. Pass the same variable along the paragraph. With the Noto bidi test subset, `123` after Arabic shapes to glyphs 1853, 2232, 2215, and 18, 19, 20 when the script starts fresh. Values that are not scalar values are shaped as U+FFFD.
+- **`ShapedRun.Origins`** holds, for each glyph of a run shaped by `ShapeRun`, the first code point it stands for, the offset of its cluster and `ShaperIndex`, its position in the shaper's order. Indic shapers move glyphs, and the run lists clusters in logical order; `ShaperIndex` tells where each glyph was before that.
+- **Bidi on code points.** `TextShaping.ResolveBidiLevels(codePoints, direction, levels)` returns the paragraph level and writes one level per code point; characters removed by rule X9 (LRE, RLE, LRO, RLO, PDF and boundary neutrals) get `TextShaping.BidiRemoved` (255) where `GetBidiLevels` gives them the previous level. `ResetTrailingWhitespace(codePoints, levels, paragraphLevel)` applies rule L1 to one line (trailing white space and isolate controls, and white space before separators, go back to the paragraph level). `GetVisualOrder(levels, order)` skips removed entries and returns how many characters are shown.
+- **Segmentation fills.** `FillLineBreakOpportunities` and `FillGraphemeStarts` write one byte per UTF-16 offset (`text.Length + 1` entries); `IsEastAsianWide(codePoint)` is the East_Asian_Width Fullwidth, Wide or Halfwidth test.
+- **Properties.** `UnicodeProperties.GetJoiningKind` is the Joining_Type; `IsSyllableScript` is true for scripts shaped in reordering syllables (Indic scripts, Khmer, Myanmar, Tibetan and the other Universal Shaping Engine scripts), false for Thai, Lao and everything else.
+- **Raw tables.** `FontFace.GetTable("COLR")` gives the bytes of a table as stored, empty when the font has none (`HasTable` tells an empty table from a missing one). The bytes are not validated.
+
 ## Line breaking and graphemes
 
 `TextSegmentation.GetLineBreakOpportunities` is the Unicode line breaking algorithm, UAX #14, Unicode 17.0 data, default rules as written, with the small kana of class CJ treated as NS (the annex's strict reading). All of `LineBreakTest.txt` and `GraphemeBreakTest.txt` pass; the tests read the unmodified files from `tests/testdata/unicode`.

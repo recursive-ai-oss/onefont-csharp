@@ -55,12 +55,19 @@ public readonly struct ShapedClusterRange
 public sealed class ShapedRun
 {
     private ShapedGlyph[] _glyphs = [];
+    private ShapedGlyphOrigin[] _origins = [];
     private ShapedClusterRange[] _clusters = [];
     private int _glyphCount;
     private int _clusterCount;
 
     /// <summary>Gets the glyphs of all clusters, cluster after cluster in logical order, each cluster's glyphs in drawing order.</summary>
     public ReadOnlySpan<ShapedGlyph> Glyphs => new(_glyphs, 0, _glyphCount);
+
+    /// <summary>
+    /// Gets, for each glyph of <see cref="Glyphs"/> (same index), the first character it stands for and where the shaper had put it before the
+    /// clusters were put in logical order. It has <see cref="GlyphCount"/> entries.
+    /// </summary>
+    public ReadOnlySpan<ShapedGlyphOrigin> Origins => new(_origins, 0, _glyphCount);
 
     /// <summary>Gets the clusters in logical order; they start at the run's first character and follow each other to its end without gaps.</summary>
     public ReadOnlySpan<ShapedClusterRange> Clusters => new(_clusters, 0, _clusterCount);
@@ -91,6 +98,8 @@ public sealed class ShapedRun
 
     internal ShapedGlyph[] GlyphArray => _glyphs;
 
+    internal ShapedGlyphOrigin[] OriginArray => _origins;
+
     internal ShapedClusterRange[] ClusterArray => _clusters;
 
     internal void SetCounts(int glyphs, int clusters)
@@ -103,7 +112,9 @@ public sealed class ShapedRun
     {
         if (total > _glyphs.Length)
         {
-            Array.Resize(ref _glyphs, Math.Max(total, Math.Min(Math.Max(_glyphs.Length * 2, 16), int.MaxValue / 2)));
+            int size = Math.Max(total, Math.Min(Math.Max(_glyphs.Length * 2, 16), int.MaxValue / 2));
+            Array.Resize(ref _glyphs, size);
+            Array.Resize(ref _origins, size);
         }
     }
 
@@ -120,6 +131,7 @@ public sealed class ShapedRun
         if (_glyphs.Length > RetainedGlyphs)
         {
             _glyphs = [];
+            _origins = [];
         }
 
         if (_clusters.Length > RetainedGlyphs)
@@ -128,3 +140,12 @@ public sealed class ShapedRun
         }
     }
 }
+
+/// <summary>
+/// Where one glyph of a <see cref="ShapedRun"/> came from: its first character and its position in the order the shaper produced. Indic and
+/// similar shapers move glyphs, and the run then lists clusters in logical order; <see cref="ShaperIndex"/> keeps the shaper's own order.
+/// </summary>
+/// <param name="CodePoint">The first code point the glyph stands for (a lone surrogate counts as U+FFFD). A glyph the shaper made from nothing, such as a dotted circle, takes the code point of the character it was inserted for.</param>
+/// <param name="Cluster">The offset in the shaped text, in UTF-16 code units, of the grapheme cluster the glyph belongs to in the shaper's output (the caller's text offset for the code point entry points).</param>
+/// <param name="ShaperIndex">The glyph's index among the glyphs of the whole run in the order the shaper gave them, which differs from its index in <see cref="ShapedRun.Glyphs"/> only for glyphs of a run that was reordered.</param>
+public readonly record struct ShapedGlyphOrigin(int CodePoint, int Cluster, int ShaperIndex);

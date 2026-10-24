@@ -9,7 +9,7 @@ namespace OneFont;
 /// Shaping and bidirectional ordering for callers that do their own line layout: the Unicode bidirectional algorithm's levels and display
 /// order, and the shaping of one run of text in one face and one direction into clusters.
 /// </summary>
-public static class TextShaping
+public static partial class TextShaping
 {
     /// <summary>The longest text the bidi and shaping helpers take, in UTF-16 code units.</summary>
     public const int MaxRunLength = 1 << 24;
@@ -293,6 +293,7 @@ public static class TextShaping
 
         result.EnsureGlyphs(glyphBase + count);
         ShapedGlyph[] glyphs = result.GlyphArray;
+        ShapedGlyphOrigin[] origins = result.OriginArray;
         int m = 0;
         bool sorted = true;
         int lastStart = -1;
@@ -312,6 +313,7 @@ public static class TextShaping
             {
                 ShapedRunGlyph r = run[e];
                 glyphs[glyphBase + e] = new ShapedGlyph(r.GlyphId, r.XAdvance, r.XOffset, r.YOffset);
+                origins[glyphBase + e] = new ShapedGlyphOrigin(r.CodePoint, baseOffset + r.Cluster, glyphBase + e);
                 advance += r.XAdvance;
                 missing |= r.GlyphId == 0 && !IsInvisible(r.CodePoint);
                 e++;
@@ -356,10 +358,12 @@ public static class TextShaping
         if (scratch.GlyphCopy.Length < glyphCount)
         {
             scratch.GlyphCopy = new ShapedGlyph[Math.Max(glyphCount, 64)];
+            scratch.OriginCopy = new ShapedGlyphOrigin[scratch.GlyphCopy.Length];
         }
 
         ShapedClusterRange[] ranges = result.ClusterArray;
         ShapedGlyph[] glyphs = result.GlyphArray;
+        ShapedGlyphOrigin[] origins = result.OriginArray;
         long[] keys = scratch.SortKeys;
         ShapedClusterRange[] items = scratch.SortItems;
         for (int k = 0; k < m; k++)
@@ -371,11 +375,13 @@ public static class TextShaping
 
         Array.Sort(keys, items, 0, m);
         Array.Copy(glyphs, glyphBase, scratch.GlyphCopy, 0, glyphCount);
+        Array.Copy(origins, glyphBase, scratch.OriginCopy, 0, glyphCount);
         int at = glyphBase;
         for (int k = 0; k < m; k++)
         {
             ShapedClusterRange r = items[k];
             Array.Copy(scratch.GlyphCopy, r.GlyphStart - glyphBase, glyphs, at, r.GlyphCount);
+            Array.Copy(scratch.OriginCopy, r.GlyphStart - glyphBase, origins, at, r.GlyphCount);
             ranges[clusterBase + k] = r.WithSpan(r.Start, 0, at);
             at += r.GlyphCount;
         }

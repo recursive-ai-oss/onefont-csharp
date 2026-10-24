@@ -221,6 +221,9 @@ internal sealed class FontData
 
     public static FontData Create(Dictionary<uint, ReadOnlyMemory<byte>> tables) => new(tables);
 
+    /// <summary>The raw bytes of a table; false when the font has none.</summary>
+    public bool TryGetTable(uint tag, out ReadOnlyMemory<byte> table) => _tables.TryGetValue(tag, out table);
+
     /// <summary>The glyph for a code point; 0 (.notdef) when the font lacks it.</summary>
     public int GetGlyphIndex(int codePoint) => _cmap.Lookup(codePoint);
 

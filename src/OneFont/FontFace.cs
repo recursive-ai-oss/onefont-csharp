@@ -109,4 +109,44 @@ public sealed class FontFace
     /// <param name="rightGlyph">The right glyph id.</param>
     /// <returns>The adjustment to the left glyph's advance; negative tightens.</returns>
     public int GetKerning(int leftGlyph, int rightGlyph) => _data.GetKerning(leftGlyph, rightGlyph);
+
+    /// <summary>
+    /// Gets the raw bytes of one of the font's tables, as stored in the file (for example <c>COLR</c>, <c>CPAL</c>, <c>vhea</c>, <c>vmtx</c>,
+    /// <c>VORG</c> or the hinting tables <c>fpgm</c>, <c>prep</c> and <c>cvt </c>). The bytes are not interpreted or validated.
+    /// </summary>
+    /// <param name="tag">The four-character table tag, such as <c>"vhea"</c>; a tag shorter than four characters is padded with spaces, so <c>"cvt"</c> is <c>"cvt "</c>.</param>
+    /// <returns>A view of the table inside the array the face was loaded from, valid as long as that array is unchanged; empty when the font has no such table (see <see cref="HasTable"/>).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="tag"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="tag"/> is longer than four characters or has a character above U+00FF.</exception>
+    public ReadOnlyMemory<byte> GetTable(string tag) => _data.TryGetTable(ParseTag(tag), out ReadOnlyMemory<byte> t) ? t : default;
+
+    /// <summary>Gets whether the font has a table with the given tag (see <see cref="GetTable"/>), even an empty one.</summary>
+    /// <param name="tag">The four-character table tag.</param>
+    /// <returns><see langword="true"/> when the font directory lists the table.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="tag"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="tag"/> is longer than four characters or has a character above U+00FF.</exception>
+    public bool HasTable(string tag) => _data.TryGetTable(ParseTag(tag), out _);
+
+    private static uint ParseTag(string tag)
+    {
+        ArgumentNullException.ThrowIfNull(tag);
+        if (tag.Length == 0 || tag.Length > 4)
+        {
+            throw new ArgumentException("A table tag has one to four characters.", nameof(tag));
+        }
+
+        uint v = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int c = i < tag.Length ? tag[i] : ' ';
+            if (c > 0xFF)
+            {
+                throw new ArgumentException("A table tag has Latin-1 characters only.", nameof(tag));
+            }
+
+            v = (v << 8) | (uint)c;
+        }
+
+        return v;
+    }
 }

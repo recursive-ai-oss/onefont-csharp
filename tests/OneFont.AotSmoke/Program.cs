@@ -59,6 +59,24 @@ internal static class Program
         TextShaping.GetBidiLevels("ab \u05D0\u05D1 cd", TextDirection.Auto, spanLevels, out _);
         Check("bidi levels into a buffer", spanLevels[3] == 1 && spanLevels[0] == 0);
 
+        // Code point entry points: a carried script, origins, bidi with the removed marker, byte fills, properties, raw tables.
+        var glyphs = new List<CodePointGlyph>();
+        uint script = 0;
+        TextShaping.ShapeCodePoints(arabic, [0x628, 0x628], [0, 1], glyphs, true, null, ref script);
+        Check("code point shaping", glyphs.Count == 2 && script != 0 && glyphs[1].Cluster == 1 && glyphs[0].CodePoint == 0x628);
+        int[] cps = [0x61, 0x202B, 0x5D0, 0x202C];
+        var cpLevels = new byte[4];
+        int cpPara = TextShaping.ResolveBidiLevels(cps, TextDirection.Auto, cpLevels);
+        Check("code point bidi", cpPara == 0 && cpLevels[1] == TextShaping.BidiRemoved && cpLevels[2] == 1);
+        TextShaping.ResetTrailingWhitespace(cps, cpLevels, cpPara);
+        var fill = new byte[6];
+        TextSegmentation.FillLineBreakOpportunities("ab cd", fill);
+        Check("byte fills", fill[3] == 1 && fill[1] == 0 && TextSegmentation.IsEastAsianWide(0x65E5));
+        Check("properties", UnicodeProperties.GetJoiningKind(0x628) == JoiningKind.Dual && UnicodeProperties.IsSyllableScript(0x915));
+        TextShaping.ShapeRun("कि", deva, run);
+        Check("origins", run.Origins.Length == run.GlyphCount && run.GlyphCount == 2);
+        Check("tables", latin.HasTable("head") && latin.GetTable("head").Length == 54 && !latin.HasTable("COLR"));
+
         Console.WriteLine(failures == 0 ? "OneFont AOT smoke: ok" : $"OneFont AOT smoke: {failures} failure(s)");
         return failures == 0 ? 0 : 1;
     }

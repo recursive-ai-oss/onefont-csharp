@@ -141,6 +141,8 @@ internal static class ShapeTarget
             throw new InvalidOperationException("grapheme boundaries do not cover the text");
         }
 
+        ExerciseCodePoints(face, text, run, rtl, dir, options, pick, flags);
+
         FontFace other;
         try
         {
@@ -170,6 +172,129 @@ internal static class ShapeTarget
         if (!breaksInto.AsSpan().SequenceEqual(breaks))
         {
             throw new InvalidOperationException("line breaks into a buffer differ");
+        }
+    }
+
+    // The code point entry points: shaping with a carried script, glyph origins, bidi with the removed marker, byte fills, properties and tables.
+    private static void ExerciseCodePoints(FontFace face, string text, ShapedRun run, bool rtl, TextDirection dir, ShapingOptions options, byte pick, byte flags)
+    {
+        // Code points from the text; a lone surrogate or, with bit 6, a wild value from the code units stays as it is.
+        var cpl = new List<int>();
+        var offsets = new List<int>();
+        for (int i = 0; i < text.Length;)
+        {
+            offsets.Add(i);
+            if (char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
+            {
+                cpl.Add(char.ConvertToUtf32(text[i], text[i + 1]));
+                i += 2;
+            }
+            else
+            {
+                cpl.Add((flags & 0x40) != 0 ? (text[i] << 16) | text[i] ^ (pick << 8) : text[i]);
+                i++;
+            }
+        }
+
+        int[] cps = [.. cpl];
+        int[] clusters = [.. offsets];
+        int cut = cps.Length / 2;
+        uint script = 0;
+        var glyphs = new List<CodePointGlyph>();
+        TextShaping.ShapeCodePoints(face, cps.AsSpan(0, cut), clusters.AsSpan(0, cut), glyphs, rtl, options, ref script);
+        int first = glyphs.Count;
+        TextShaping.ShapeCodePoints(face, cps.AsSpan(cut), clusters.AsSpan(cut), glyphs, !rtl, options, ref script);
+        foreach (CodePointGlyph g in glyphs)
+        {
+            if (g.GlyphId is < 0 or > 0xFFFF || g.Cluster < 0 || g.Cluster > text.Length)
+            {
+                throw new InvalidOperationException("code point glyph out of range");
+            }
+        }
+
+        if (first > glyphs.Count)
+        {
+            throw new InvalidOperationException("glyphs were removed");
+        }
+
+        // Origins: one per glyph and a permutation of the shaper's order.
+        if (run.Origins.Length != run.GlyphCount)
+        {
+            throw new InvalidOperationException("origins and glyphs differ in count");
+        }
+
+        var seen = new bool[run.GlyphCount];
+        foreach (ShapedGlyphOrigin o in run.Origins)
+        {
+            if ((uint)o.ShaperIndex >= (uint)seen.Length || seen[o.ShaperIndex])
+            {
+                throw new InvalidOperationException("shaper order is not a permutation");
+            }
+
+            seen[o.ShaperIndex] = true;
+        }
+
+        // Bidi on code points.
+        var levels = new byte[cps.Length];
+        int para = TextShaping.ResolveBidiLevels(cps, dir, levels);
+        if (para is not (0 or 1))
+        {
+            throw new InvalidOperationException("paragraph level");
+        }
+
+        byte[] reset = [.. levels];
+        TextShaping.ResetTrailingWhitespace(cps, reset, para);
+        for (int i = 0; i < levels.Length; i++)
+        {
+            if ((levels[i] == TextShaping.BidiRemoved) != (reset[i] == TextShaping.BidiRemoved))
+            {
+                throw new InvalidOperationException("L1 changed a removed marker");
+            }
+        }
+
+        var order = new int[levels.Length];
+        int shown = TextShaping.GetVisualOrder(reset, order);
+        if (shown > levels.Length || order.Take(shown).Distinct().Count() != shown || order.Take(shown).Any(i => (uint)i >= (uint)levels.Length || reset[i] == TextShaping.BidiRemoved))
+        {
+            throw new InvalidOperationException("visual order with removed characters");
+        }
+
+        // Byte fills agree with the typed forms.
+        var typed = new LineBreakOpportunity[text.Length + 1];
+        TextSegmentation.GetLineBreakOpportunities(text, typed);
+        var bytes = new byte[text.Length + 1];
+        TextSegmentation.FillLineBreakOpportunities(text, bytes);
+        var starts = new byte[text.Length + 1];
+        TextSegmentation.FillGraphemeStarts(text, starts);
+        int[] boundaries = TextSegmentation.GetGraphemeBoundaries(text);
+        int b = 0;
+        for (int i = 0; i <= text.Length; i++)
+        {
+            bool start = b < boundaries.Length && boundaries[b] == i;
+            if (start)
+            {
+                b++;
+            }
+
+            if ((byte)typed[i] != bytes[i] || start != (starts[i] != 0))
+            {
+                throw new InvalidOperationException("byte fills differ from the typed forms");
+            }
+        }
+
+        foreach (int cp in cps)
+        {
+            _ = UnicodeProperties.GetJoiningKind(cp);
+            _ = UnicodeProperties.IsSyllableScript(cp);
+            _ = TextSegmentation.IsEastAsianWide(cp);
+        }
+
+        // Raw tables: any tag the caller can build is answered or rejected with an argument exception.
+        string[] tags = ["head", "GSUB", "COLR", "cvt", "cmap", "x"];
+        string tag = tags[pick % tags.Length];
+        if (face.HasTable(tag) != !face.GetTable(tag).IsEmpty && face.GetTable(tag).Length != 0)
+        {
+            throw new InvalidOperationException("table presence differs");
         }
     }
 

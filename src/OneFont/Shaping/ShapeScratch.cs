@@ -33,6 +33,7 @@ internal sealed class ShapeScratch
     public long[] SortKeys = [];
     public ShapedClusterRange[] SortItems = [];
     public ShapedGlyph[] GlyphCopy = [];
+    public ShapedGlyphOrigin[] OriginCopy = [];
 
     public static ShapeScratch Current => t_current ??= new ShapeScratch();
 
@@ -63,6 +64,7 @@ internal sealed class ShapeScratch
         if (GlyphCopy.Length > RetainedGlyphs)
         {
             GlyphCopy = [];
+            OriginCopy = [];
         }
 
         Temp.Trim();
