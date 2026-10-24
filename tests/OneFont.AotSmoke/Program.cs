@@ -64,6 +64,10 @@ internal static class Program
         uint script = 0;
         TextShaping.ShapeCodePoints(arabic, [0x628, 0x628], [0, 1], glyphs, true, null, ref script);
         Check("code point shaping", glyphs.Count == 2 && script != 0 && glyphs[1].Cluster == 1 && glyphs[0].CodePoint == 0x628);
+        var cpRun = new CodePointRun();
+        uint script2 = 0;
+        TextShaping.ShapeCodePoints(arabic, [0x628, 0x628], [0, 1], cpRun, true, null, ref script2);
+        Check("code point shaping into a reusable run", cpRun.Count == glyphs.Count && script2 == script && cpRun[1] == glyphs[1]);
         int[] cps = [0x61, 0x202B, 0x5D0, 0x202C];
         var cpLevels = new byte[4];
         int cpPara = TextShaping.ResolveBidiLevels(cps, TextDirection.Auto, cpLevels);

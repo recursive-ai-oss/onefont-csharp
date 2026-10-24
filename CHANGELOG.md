@@ -4,6 +4,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+- Added a `TextShaping.ShapeCodePoints` overload that fills a reusable `CodePointRun` (`Count`, `Glyphs`, indexer) instead of a `List<CodePointGlyph>`: the same glyphs and carried script, no allocation per call once the run has grown. The list overload gives identical output and now shares the code.
+
 ## [1.2.0] - 2026-10-24
 
 - Added `TextShaping.ShapeCodePoints`: shapes a run given as code points with caller-supplied cluster values and a script carried from run to run (`ref uint script`), so digits and spaces after Arabic take the Arabic script. It returns `CodePointGlyph` values in the shaper's own order, each with its code point and cluster.

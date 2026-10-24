@@ -5,7 +5,7 @@ using OneFont.Unicode;
 namespace OneFont;
 
 /// <summary>
-/// One glyph of a run shaped from code points with <see cref="TextShaping.ShapeCodePoints"/>, in the order the shaper produced them
+/// One glyph of a run shaped from code points with <c>TextShaping.ShapeCodePoints</c>, in the order the shaper produced them
 /// (no reordering into logical cluster order, unlike <see cref="ShapedRun"/>). Distances are in font units; the advance already includes
 /// pair adjustments.
 /// </summary>
@@ -16,6 +16,40 @@ namespace OneFont;
 /// <param name="XOffset">How far the glyph is drawn right of the pen position. In a right-to-left run offsets are meant for display order, which the caller gets by reversing the glyphs.</param>
 /// <param name="YOffset">How far the glyph is drawn above the baseline.</param>
 public readonly record struct CodePointGlyph(int GlyphId, int Cluster, int CodePoint, int XAdvance, int XOffset, int YOffset);
+
+/// <summary>
+/// The glyphs of a run shaped with <see cref="TextShaping.ShapeCodePoints(FontFace, ReadOnlySpan{int}, ReadOnlySpan{int}, CodePointRun, bool, ShapingOptions?, ref uint)"/>,
+/// kept in one array that grows as needed and is reused by the next call, so a caller that shapes many runs allocates nothing per run.
+/// Read <see cref="Glyphs"/> before the next call. A <see cref="CodePointRun"/> is not thread-safe; use one per thread.
+/// </summary>
+public sealed class CodePointRun
+{
+    private CodePointGlyph[] _glyphs = [];
+
+    /// <summary>Gets the glyphs of the last run shaped into this object, in the order the shaper produced them. Empty before the first call.</summary>
+    public ReadOnlySpan<CodePointGlyph> Glyphs => _glyphs.AsSpan(0, Count);
+
+    /// <summary>Gets the number of glyphs.</summary>
+    public int Count { get; internal set; }
+
+    /// <summary>Gets the glyph at <paramref name="index"/>.</summary>
+    /// <param name="index">A position from 0 to <see cref="Count"/> - 1.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is outside that range.</exception>
+    public CodePointGlyph this[int index] => (uint)index < (uint)Count ? _glyphs[index] : throw new ArgumentOutOfRangeException(nameof(index));
+
+    /// <summary>Forgets the glyphs; the array is kept for reuse.</summary>
+    public void Clear() => Count = 0;
+
+    internal CodePointGlyph[] Reserve(int n)
+    {
+        if (_glyphs.Length < n)
+        {
+            _glyphs = new CodePointGlyph[Math.Max(n, _glyphs.Length * 2)];
+        }
+
+        return _glyphs;
+    }
+}
 
 public static partial class TextShaping
 {
@@ -39,8 +73,35 @@ public static partial class TextShaping
     /// <exception cref="FontFormatException">The font data is malformed. <paramref name="output"/> is then as it was before the call.</exception>
     public static void ShapeCodePoints(FontFace face, ReadOnlySpan<int> codePoints, ReadOnlySpan<int> clusters, List<CodePointGlyph> output, bool rightToLeft, ShapingOptions? options, ref uint script)
     {
-        ArgumentNullException.ThrowIfNull(face);
         ArgumentNullException.ThrowIfNull(output);
+        ShapeCodePointsCore(face, codePoints, clusters, output, null, rightToLeft, options, ref script);
+    }
+
+    /// <summary>
+    /// Shapes a run given as code points into a reusable <see cref="CodePointRun"/>: the same glyphs, clusters, code points, advances,
+    /// offsets and carried script as the <see cref="List{T}"/> overload, with no allocation per call once the run has grown to the size
+    /// of the longest run shaped into it.
+    /// </summary>
+    /// <param name="face">The face.</param>
+    /// <param name="codePoints">The run in logical order. A value that is not a Unicode scalar value (negative, a surrogate or above U+10FFFF) is shaped as U+FFFD.</param>
+    /// <param name="clusters">One value per code point, copied to the glyphs the code point produces. Must have as many entries as <paramref name="codePoints"/>.</param>
+    /// <param name="result">Receives the glyphs. Whatever it held is replaced, also when the run is empty; if the call throws it is left empty.</param>
+    /// <param name="rightToLeft">Whether the run is right to left (all of it at one odd level).</param>
+    /// <param name="options">Language, kerning and features; the defaults when <see langword="null"/>.</param>
+    /// <param name="script">The script of the text before the run (0 at the start of a paragraph); on return the script the run ended in. See the list overload.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="face"/> or <paramref name="result"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">The spans differ in length or are longer than <see cref="MaxRunLength"/>.</exception>
+    /// <exception cref="FontFormatException">The font data is malformed.</exception>
+    public static void ShapeCodePoints(FontFace face, ReadOnlySpan<int> codePoints, ReadOnlySpan<int> clusters, CodePointRun result, bool rightToLeft, ShapingOptions? options, ref uint script)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        result.Clear();
+        ShapeCodePointsCore(face, codePoints, clusters, null, result, rightToLeft, options, ref script);
+    }
+
+    private static void ShapeCodePointsCore(FontFace face, ReadOnlySpan<int> codePoints, ReadOnlySpan<int> clusters, List<CodePointGlyph>? list, CodePointRun? result, bool rightToLeft, ShapingOptions? options, ref uint script)
+    {
+        ArgumentNullException.ThrowIfNull(face);
         if (codePoints.Length != clusters.Length)
         {
             throw new ArgumentException("There must be one cluster value per code point.", nameof(clusters));
@@ -86,10 +147,24 @@ public static partial class TextShaping
             try
             {
                 TextShaper.Shape(face.Data, cps, clusters, Languages.ToTag(options?.Language), FeaturesOf(options), run, rightToLeft, ref state);
-                output.EnsureCapacity(output.Count + run.Count);
-                foreach (ShapedRunGlyph g in run)
+                if (list is not null)
                 {
-                    output.Add(new CodePointGlyph(g.GlyphId, g.Cluster, g.CodePoint, g.XAdvance, g.XOffset, g.YOffset));
+                    list.EnsureCapacity(list.Count + run.Count);
+                    foreach (ShapedRunGlyph g in run)
+                    {
+                        list.Add(new CodePointGlyph(g.GlyphId, g.Cluster, g.CodePoint, g.XAdvance, g.XOffset, g.YOffset));
+                    }
+                }
+                else
+                {
+                    CodePointGlyph[] dest = result!.Reserve(run.Count);
+                    for (int i = 0; i < run.Count; i++)
+                    {
+                        ShapedRunGlyph g = run[i];
+                        dest[i] = new CodePointGlyph(g.GlyphId, g.Cluster, g.CodePoint, g.XAdvance, g.XOffset, g.YOffset);
+                    }
+
+                    result.Count = run.Count;
                 }
 
                 script = state;
