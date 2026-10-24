@@ -175,6 +175,8 @@ internal static class ShapeTarget
         }
     }
 
+    private static readonly CodePointRun SharedRun = new();
+
     // The code point entry points: shaping with a carried script, glyph origins, bidi with the removed marker, byte fills, properties and tables.
     private static void ExerciseCodePoints(FontFace face, string text, ShapedRun run, bool rtl, TextDirection dir, ShapingOptions options, byte pick, byte flags)
     {
@@ -204,6 +206,28 @@ internal static class ShapeTarget
         TextShaping.ShapeCodePoints(face, cps.AsSpan(0, cut), clusters.AsSpan(0, cut), glyphs, rtl, options, ref script);
         int first = glyphs.Count;
         TextShaping.ShapeCodePoints(face, cps.AsSpan(cut), clusters.AsSpan(cut), glyphs, !rtl, options, ref script);
+
+        // The reusable-buffer overload must give what the list overload gave, whatever the buffer held before.
+        uint bufferScript = 0;
+        CodePointRun buffer = SharedRun;
+        TextShaping.ShapeCodePoints(face, cps, clusters, buffer, !rtl, null, ref bufferScript);
+        bufferScript = 0;
+        TextShaping.ShapeCodePoints(face, cps.AsSpan(0, cut), clusters.AsSpan(0, cut), buffer, rtl, options, ref bufferScript);
+        var viaList = new List<CodePointGlyph>();
+        uint listScript = 0;
+        TextShaping.ShapeCodePoints(face, cps.AsSpan(0, cut), clusters.AsSpan(0, cut), viaList, rtl, options, ref listScript);
+        if (listScript != bufferScript || viaList.Count != buffer.Count)
+        {
+            throw new InvalidOperationException("code point buffer overload differs in count or script");
+        }
+
+        for (int i = 0; i < viaList.Count; i++)
+        {
+            if (viaList[i] != buffer[i])
+            {
+                throw new InvalidOperationException("code point buffer overload differs in a glyph");
+            }
+        }
         foreach (CodePointGlyph g in glyphs)
         {
             if (g.GlyphId is < 0 or > 0xFFFF || g.Cluster < 0 || g.Cluster > text.Length)
