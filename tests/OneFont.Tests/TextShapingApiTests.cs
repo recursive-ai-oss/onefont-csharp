@@ -155,4 +155,27 @@ public class TextShapingApiTests
         Assert.Throws<ArgumentException>(() => new FontFallbackChain(Enumerable.Repeat(TestFonts.Noto, FontFallbackChain.MaxFaces + 1)));
         Assert.Equal(new FontFallbackChain([TestFonts.Noto]).ShapeRun("Hi!").Select(c => c.Advance), TextShaping.ShapeRun("Hi!", TestFonts.Noto).Select(c => c.Advance));
     }
+
+    [Theory]
+    [InlineData("‌क्ष")]
+    [InlineData("‍क")]
+    [InlineData("‌")]
+    [InlineData("‌‍‌")]
+    [InlineData("क‌‌")]
+    public void ClustersCoverTheTextEvenWhenTheShaperDropsCharacters(string text)
+    {
+        // Joiners next to Indic letters are consumed by the shaper; the clusters must still start at 0 and follow each other to the end.
+        FontFace deva = TestFonts.Public("NotoSansDevanagari-Subset-Regular.ttf");
+        IReadOnlyList<ShapedCluster> clusters = TextShaping.ShapeRun(text, deva);
+        Assert.NotEmpty(clusters);
+        int at = 0;
+        foreach (ShapedCluster c in clusters)
+        {
+            Assert.Equal(at, c.Start);
+            Assert.True(c.Length >= 1);
+            at += c.Length;
+        }
+
+        Assert.Equal(text.Length, at);
+    }
 }

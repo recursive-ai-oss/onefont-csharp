@@ -221,10 +221,19 @@ public static class TextShaping
 
             // Lengths run to the next cluster's start (the last to the end of the text); clusters come out in logical order.
             pending.Sort(static (x, y) => x.Start.CompareTo(y.Start));
+            if (pending.Count == 0)
+            {
+                // Every character was dropped by the shaper (for example a lone joiner next to an Indic letter): one empty cluster keeps the
+                // clusters covering the text.
+                clusters.Add(new ShapedCluster(baseOffset, length, faceIndex, 0, false, []));
+            }
+
             for (int k = 0; k < pending.Count; k++)
             {
                 int end = k + 1 < pending.Count ? pending[k + 1].Start : length;
-                int first = pending[k].Start;
+
+                // Characters the shaper dropped at the start of the run (a joiner before an Indic letter) belong to the first cluster.
+                int first = k == 0 ? 0 : pending[k].Start;
                 clusters.Add(new ShapedCluster(baseOffset + first, Math.Max(end - first, 1), faceIndex, pending[k].Advance, pending[k].Missing, pending[k].Glyphs));
             }
         }

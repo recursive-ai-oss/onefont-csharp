@@ -1,7 +1,7 @@
 namespace OneFont;
 
 /// <summary>One glyph of a shaped cluster. Advances and offsets are in font design units (see <see cref="FontFace.UnitsPerEm"/>).</summary>
-/// <param name="GlyphId">The glyph id in the face that shaped the run.</param>
+/// <param name="GlyphId">The glyph id in the face that shaped the run. A damaged font can substitute to an id it has no glyph for; <see cref="FontFace.GetOutline"/> and <see cref="FontFace.GetAdvance"/> accept any id.</param>
 /// <param name="XAdvance">The horizontal advance, including pair kerning and other GPOS adjustments.</param>
 /// <param name="XOffset">How far the glyph is drawn right of the pen position (marks, cursive attachment).</param>
 /// <param name="YOffset">How far the glyph is drawn above the baseline.</param>
@@ -44,6 +44,10 @@ public sealed class ShapedCluster
     /// <summary>Gets whether any glyph of the cluster is the face's missing-glyph box because the face lacks the character.</summary>
     public bool HasMissingGlyph { get; }
 
-    /// <summary>Gets the cluster's glyphs in drawing order. Each glyph's offsets are relative to the pen position after the glyphs before it.</summary>
+    /// <summary>
+    /// Gets the cluster's glyphs in drawing order. Each glyph's offsets are relative to the pen position after the glyphs before it. The
+    /// span is empty only when the shaper dropped every character of the run (a lone zero width joiner next to an Indic letter), in
+    /// which case the run is one cluster with no glyphs and an advance of 0.
+    /// </summary>
     public ReadOnlySpan<ShapedGlyph> Glyphs => _glyphs;
 }

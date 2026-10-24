@@ -9,7 +9,7 @@
     <IsTrimmable>true</IsTrimmable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>font;text;shaping;opentype;truetype;harfbuzz-alternative;unicode;bidi;nativeaot;trimmable</PackageTags>
+    <PackageTags>font;text;shaping;opentype;truetype;unicode;bidi;nativeaot;trimmable</PackageTags>
     <PackageReleaseNotes>See CHANGELOG.md in the repository.</PackageReleaseNotes>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
