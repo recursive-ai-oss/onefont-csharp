@@ -4,6 +4,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-24
+
 - Added a `TextShaping.ShapeCodePoints` overload that fills a reusable `CodePointRun` (`Count`, `Glyphs`, indexer) instead of a `List<CodePointGlyph>`: the same glyphs and carried script, no allocation per call once the run has grown. The list overload gives identical output and now shares the code.
 
 ## [1.2.0] - 2026-10-24
@@ -26,6 +28,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - First version. Fonts: TrueType, OpenType with CFF outlines, TrueType Collections. Shaping: GSUB and GPOS with every lookup type and flag; Arabic, Indic, Universal Shaping Engine, Thai and Lao shapers. Unicode 17: bidi levels and order (UAX #9), line break opportunities (UAX #14), grapheme boundaries (UAX #29). Font fallback chain. Glyph outlines through a sink.
 - `TextShaping.ShapeRun` returns clusters that start at offset 0 and follow each other to the end of the text, even when the shaper drops characters (a joiner before an Indic letter).
 
+[1.3.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.3.0
 [1.2.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.2.0
 [1.1.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.1.0
 [1.0.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.0.0
