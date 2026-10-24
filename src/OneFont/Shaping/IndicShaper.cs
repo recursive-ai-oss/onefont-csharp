@@ -262,11 +262,13 @@ internal sealed class IndicShaper : ScriptShaper
     public override GlyphBuffer? BuildRun(FontData face, ReadOnlySpan<int> codePoints, ReadOnlySpan<int> clusters)
     {
         int n = codePoints.Length;
-        var cps = new int[n + (n >> 1) + 8];
-        var cls = new int[cps.Length];
-        var cat = new byte[cps.Length];
-        var matra = new byte[cps.Length];
-        var aboveSign = new bool[cps.Length];
+        ShapeScratch scratch = ShapeScratch.Current;
+        scratch.EnsureRun(n + (n >> 1) + 8);
+        int[] cps = scratch.RunCodePoints;
+        int[] cls = scratch.RunClusters;
+        byte[] cat = scratch.RunCategories;
+        byte[] matra = scratch.RunMatras;
+        bool[] aboveSign = scratch.RunAbove;
         int m = 0;
         Span<int> stack = stackalloc int[8];
         for (int k = 0; k < n; k++)
@@ -289,11 +291,12 @@ internal sealed class IndicShaper : ScriptShaper
 
                 if (m == cps.Length)
                 {
-                    Array.Resize(ref cps, m * 2);
-                    Array.Resize(ref cls, m * 2);
-                    Array.Resize(ref cat, m * 2);
-                    Array.Resize(ref matra, m * 2);
-                    Array.Resize(ref aboveSign, m * 2);
+                    scratch.EnsureRun(m * 2);
+                    cps = scratch.RunCodePoints;
+                    cls = scratch.RunClusters;
+                    cat = scratch.RunCategories;
+                    matra = scratch.RunMatras;
+                    aboveSign = scratch.RunAbove;
                 }
 
                 cps[m] = cp;
@@ -309,7 +312,7 @@ internal sealed class IndicShaper : ScriptShaper
             }
         }
 
-        var buffer = new GlyphBuffer(m + 4);
+        GlyphBuffer buffer = GlyphBuffer.Rent(m + 4);
         bool circle = face.GetGlyphIndex(SyllableSupport.DottedCircle) != 0;
         int syllable = 0;
         for (int i = 0; i < m;)

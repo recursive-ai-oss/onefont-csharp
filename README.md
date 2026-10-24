@@ -54,6 +54,17 @@ options.Features.Add(FontFeature.On("smcp"));
 TextShaping.ShapeRun("Small Caps", face, options: options);
 ```
 
+Shaping many runs (a paragraph engine, a table) can reuse one result and allocate nothing per call:
+
+```csharp
+var run = new ShapedRun();
+TextShaping.ShapeRun("Small Caps", face, run, options: options);
+foreach (ShapedClusterRange cluster in run.Clusters)
+{
+    ReadOnlySpan<ShapedGlyph> glyphs = run.GlyphsOf(cluster);
+}
+```
+
 A run is one face, one direction and one paragraph's worth of text. Splitting a paragraph into runs (by bidi level, by face) and placing them on lines is the caller's job; `tests/OneFont.Tests/MiniLayout.cs` is a short worked example.
 
 More detail on the shaping rules, the limits, and where the output deliberately differs from SixLabors.Fonts is in [docs/shaping.md](docs/shaping.md).

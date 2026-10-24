@@ -6,6 +6,9 @@
     <Project Path="tests/OneFont.Tests/OneFont.Tests.csproj" />
     <Project Path="tests/OneFont.AotSmoke/OneFont.AotSmoke.csproj" />
   </Folder>
+  <Folder Name="/bench/">
+    <Project Path="bench/OneFont.Benchmarks/OneFont.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/fuzz/">
     <Project Path="fuzz/OneFont.Fuzz/OneFont.Fuzz.csproj" />
   </Folder>

@@ -91,38 +91,49 @@ internal sealed class ArabicShaper : ScriptShaper
 
         // The type of the nearest non-transparent character before each position, found in one pass; the next one in a second.
         JoiningType prev = JoiningType.None;
-        Span<JoiningType> before = n <= 256 ? stackalloc JoiningType[n] : new JoiningType[n];
-        for (int i = 0; i < n; i++)
+        JoiningType[]? rented = n <= 256 ? null : System.Buffers.ArrayPool<JoiningType>.Shared.Rent(n);
+        Span<JoiningType> before = rented is null ? stackalloc JoiningType[n] : rented.AsSpan(0, n);
+        try
         {
-            before[i] = prev;
-            JoiningType t = UnicodeBidi.GetJoiningType(buffer.Info[i].CodePoint);
-            if (t != JoiningType.Transparent)
+            for (int i = 0; i < n; i++)
             {
-                prev = t;
+                before[i] = prev;
+                JoiningType t = UnicodeBidi.GetJoiningType(buffer.Info[i].CodePoint);
+                if (t != JoiningType.Transparent)
+                {
+                    prev = t;
+                }
+            }
+
+            JoiningType next = JoiningType.None;
+            for (int i = n - 1; i >= 0; i--)
+            {
+                ref GlyphInfo info = ref buffer.Info[i];
+                JoiningType t = UnicodeBidi.GetJoiningType(info.CodePoint);
+                if (t == JoiningType.Transparent)
+                {
+                    // Marks and other transparent characters have no form of their own.
+                    info.Mask = 0;
+                    continue;
+                }
+
+                // A character joins to the one before it if it can join backwards and that one can join forwards, and the same to the next.
+                bool joinsBack = t is JoiningType.Right or JoiningType.Dual or JoiningType.Causing
+                    && before[i] is JoiningType.Left or JoiningType.Dual or JoiningType.Causing;
+                bool joinsNext = t is JoiningType.Left or JoiningType.Dual or JoiningType.Causing
+                    && next is JoiningType.Right or JoiningType.Dual or JoiningType.Causing;
+                info.Mask = t == JoiningType.None || t == JoiningType.Causing
+                    ? 0
+                    : joinsBack ? (joinsNext ? Medi : Fina) : (joinsNext ? Init : Isol);
+                next = t;
             }
         }
-
-        JoiningType next = JoiningType.None;
-        for (int i = n - 1; i >= 0; i--)
+        finally
         {
-            ref GlyphInfo info = ref buffer.Info[i];
-            JoiningType t = UnicodeBidi.GetJoiningType(info.CodePoint);
-            if (t == JoiningType.Transparent)
+            if (rented is not null)
             {
-                // Marks and other transparent characters have no form of their own.
-                info.Mask = 0;
-                continue;
+                System.Buffers.ArrayPool<JoiningType>.Shared.Return(rented);
             }
-
-            // A character joins to the one before it if it can join backwards and that one can join forwards, and the same to the next.
-            bool joinsBack = t is JoiningType.Right or JoiningType.Dual or JoiningType.Causing
-                && before[i] is JoiningType.Left or JoiningType.Dual or JoiningType.Causing;
-            bool joinsNext = t is JoiningType.Left or JoiningType.Dual or JoiningType.Causing
-                && next is JoiningType.Right or JoiningType.Dual or JoiningType.Causing;
-            info.Mask = t == JoiningType.None || t == JoiningType.Causing
-                ? 0
-                : joinsBack ? (joinsNext ? Medi : Fina) : (joinsNext ? Init : Isol);
-            next = t;
         }
     }
 }

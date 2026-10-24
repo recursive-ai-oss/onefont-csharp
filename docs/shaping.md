@@ -18,6 +18,28 @@ Not done: canonical reordering and composition of combining marks (a mark sequen
 
 The paragraph-level work around the shaper (splitting a paragraph into runs of one direction, dropping format characters, ending a run at a zero width non-joiner, zero width space or soft hyphen, carrying the script from run to run) belongs to the caller. `tests/OneFont.Tests/MiniLayout.cs` is a short, complete example.
 
+## Shaping many runs without allocating
+
+`TextShaping.ShapeRun` and `FontFallbackChain.ShapeRun` return a list of `ShapedCluster` objects: one object per cluster, with its glyphs. That is convenient and costs about 75 bytes per character (1.0.0 spent about 270). A caller that shapes thousands of runs (a paragraph engine, a table of cells) can pass a `ShapedRun` instead:
+
+```csharp
+var run = new ShapedRun();                       // keep it; its arrays grow once and are reused
+TextShaping.ShapeRun(text, face, run, rightToLeft: false, options);
+foreach (ShapedClusterRange cluster in run.Clusters)
+{
+    ReadOnlySpan<ShapedGlyph> glyphs = run.GlyphsOf(cluster);
+    // cluster.Start, Length, FaceIndex, Advance, HasMissingGlyph
+}
+```
+
+- **Same values.** Cluster `i` of the `ShapedRun` has the start, length, face, advance, missing-glyph flag and glyphs of cluster `i` of the list. The glyphs of all clusters sit in `run.Glyphs`, cluster after cluster in logical order, and `FirstGlyph` and `GlyphCount` say which belong to a cluster. A cluster the shaper dropped every character of has `GlyphCount` 0.
+- **Replaced on every call.** The call clears the result first and, if it throws `FontFormatException`, leaves it empty. The spans are valid until the next call with the same `ShapedRun`. A `ShapedRun` belongs to one thread at a time; any number of threads may shape concurrently, each with its own.
+- **Nothing per call.** Once the result and the calling thread have warmed up, the call allocates no managed memory for Latin, Arabic or Indic text, with or without options and through a fallback chain. The shaper keeps a little state per thread (glyph buffers, the lookup engines, the sort space for cluster order); it is trimmed when a run grows it past 16,384 glyphs, so one huge run does not pin memory in an idle thread. The 1.0 list is built from the same path, so it allocates only the cluster objects, one shared glyph array and the list.
+- **Options.** A `ShapingOptions` object caches the feature set built from its settings and rebuilds it when `Kerning` or `Features` change, so reusing one object across calls costs nothing; a new object per call costs one small allocation if it has settings.
+- **Beside it.** `TextShaping.GetBidiLevels(text, direction, levels, out paragraphLevel)`, `GetVisualOrder(levels, order)` and `TextSegmentation.GetLineBreakOpportunities(text, opportunities)` fill buffers the caller owns.
+
+`tests/OneFont.Tests/ShapedRunTests.cs` checks both forms against digests made by the 1.0.0 build over every test face and a fixed corpus, so a change to either path that moves a glyph, advance, offset or cluster boundary fails.
+
 ## Direction and right-to-left text
 
 `TextShaping.GetBidiLevels` runs the Unicode Bidirectional Algorithm (UAX #9, Unicode 17 data) on one paragraph; the official `BidiTest.txt` and `BidiCharacterTest.txt` pass in full and are committed as test data. `TextDirection.Auto` takes the paragraph direction from the first strong character and falls back to left to right; `LeftToRight` and `RightToLeft` force the paragraph level, and the algorithm still reorders embedded runs of the other direction. `GetVisualOrder` applies rule L2 to levels per character or per cluster. Brackets are mirrored by the shaper (rule L4 and bracket pairs, rule N0), by code point, or through the font's `rtlm` feature when it has one. Explicit embeddings, overrides and isolates up to depth 125 are honored. Embedding depth is bounded at 125 and the bracket stack at 63, as the algorithm says, and hostile text lays out in time linear in its length.

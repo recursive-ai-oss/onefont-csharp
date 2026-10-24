@@ -181,9 +181,11 @@ internal sealed class UseShaper : ScriptShaper
     public override GlyphBuffer? BuildRun(FontData face, ReadOnlySpan<int> codePoints, ReadOnlySpan<int> clusters)
     {
         int n = codePoints.Length;
-        var cps = new int[n + (n >> 1) + 8];
-        var cls = new int[cps.Length];
-        var cat = new byte[cps.Length];
+        ShapeScratch scratch = ShapeScratch.Current;
+        scratch.EnsureRun(n + (n >> 1) + 8);
+        int[] cps = scratch.RunCodePoints;
+        int[] cls = scratch.RunClusters;
+        byte[] cat = scratch.RunCategories;
         int m = 0;
         Span<int> stack = stackalloc int[8];
         for (int k = 0; k < n; k++)
@@ -201,7 +203,10 @@ internal sealed class UseShaper : ScriptShaper
                         // The pre-base e plus the sign itself; the sign keeps its code point (it is not decomposed again).
                         if (m + 2 > cps.Length)
                         {
-                            GrowRun(ref cps, ref cls, ref cat);
+                            scratch.EnsureRun(cps.Length * 2);
+                            cps = scratch.RunCodePoints;
+                            cls = scratch.RunClusters;
+                            cat = scratch.RunCategories;
                         }
 
                         cps[m] = 0x17C1;
@@ -223,7 +228,10 @@ internal sealed class UseShaper : ScriptShaper
 
                 if (m == cps.Length)
                 {
-                    GrowRun(ref cps, ref cls, ref cat);
+                    scratch.EnsureRun(cps.Length * 2);
+                    cps = scratch.RunCodePoints;
+                    cls = scratch.RunClusters;
+                    cat = scratch.RunCategories;
                 }
 
                 cps[m] = cp;
@@ -232,7 +240,7 @@ internal sealed class UseShaper : ScriptShaper
             }
         }
 
-        var buffer = new GlyphBuffer(m + 4);
+        GlyphBuffer buffer = GlyphBuffer.Rent(m + 4);
         bool circle = face.GetGlyphIndex(SyllableSupport.DottedCircle) != 0;
         int cluster = 0;
         for (int i = 0; i < m;)
@@ -263,14 +271,6 @@ internal sealed class UseShaper : ScriptShaper
         }
 
         return buffer;
-    }
-
-    private static void GrowRun(ref int[] cps, ref int[] cls, ref byte[] cat)
-    {
-        int size = cps.Length * 2;
-        Array.Resize(ref cps, size);
-        Array.Resize(ref cls, size);
-        Array.Resize(ref cat, size);
     }
 
     private static bool IsHead(byte c) => c == CatBase || c == CatGb || c == CatCs;

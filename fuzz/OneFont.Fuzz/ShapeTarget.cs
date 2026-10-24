@@ -95,6 +95,12 @@ internal static class ShapeTarget
         bool rtl = (flags & 1) != 0;
         IReadOnlyList<ShapedCluster> clusters = TextShaping.ShapeRun(text, face, rtl, options);
         CheckClusters(clusters, text.Length);
+
+        // The reusable result must hold exactly what the list holds. It is shaped twice into one object, so a stale entry would show.
+        var run = new ShapedRun();
+        TextShaping.ShapeRun("stale", face, run);
+        TextShaping.ShapeRun(text, face, run, rtl, options);
+        CheckSame(clusters, run);
         foreach (ShapedCluster c in clusters.Take(64))
         {
             foreach (ShapedGlyph g in c.Glyphs)
@@ -146,7 +152,52 @@ internal static class ShapeTarget
         }
 
         var chain = new FontFallbackChain([face, other]);
-        CheckClusters(chain.ShapeRun(text, rtl, options), text.Length);
+        IReadOnlyList<ShapedCluster> chained = chain.ShapeRun(text, rtl, options);
+        CheckClusters(chained, text.Length);
+        chain.ShapeRun(text, run, rtl, options);
+        CheckSame(chained, run);
+
+        // The span forms of bidi and line breaking match the array forms.
+        byte[] into = new byte[text.Length];
+        TextShaping.GetBidiLevels(text, dir, into, out int para2);
+        if (para2 != para || !into.AsSpan().SequenceEqual(levels))
+        {
+            throw new InvalidOperationException("bidi levels into a buffer differ");
+        }
+
+        var breaksInto = new LineBreakOpportunity[text.Length + 1];
+        TextSegmentation.GetLineBreakOpportunities(text, breaksInto);
+        if (!breaksInto.AsSpan().SequenceEqual(breaks))
+        {
+            throw new InvalidOperationException("line breaks into a buffer differ");
+        }
+    }
+
+    private static void CheckSame(IReadOnlyList<ShapedCluster> clusters, ShapedRun run)
+    {
+        if (clusters.Count != run.ClusterCount)
+        {
+            throw new InvalidOperationException("cluster counts differ");
+        }
+
+        int glyphs = 0;
+        for (int i = 0; i < clusters.Count; i++)
+        {
+            ShapedCluster c = clusters[i];
+            ShapedClusterRange r = run.Clusters[i];
+            if (c.Start != r.Start || c.Length != r.Length || c.FaceIndex != r.FaceIndex || c.Advance != r.Advance || c.HasMissingGlyph != r.HasMissingGlyph || r.GlyphStart != glyphs
+                || !c.Glyphs.SequenceEqual(run.GlyphsOf(r)))
+            {
+                throw new InvalidOperationException($"cluster {i} differs between the list and the reusable result");
+            }
+
+            glyphs += r.GlyphCount;
+        }
+
+        if (glyphs != run.GlyphCount)
+        {
+            throw new InvalidOperationException("glyph counts differ");
+        }
     }
 
     // The clusters of a run follow each other without gaps and cover the text; every glyph id fits 16 bits (a damaged font can substitute to an id it has no glyph for).

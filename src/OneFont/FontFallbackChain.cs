@@ -66,12 +66,44 @@ public sealed class FontFallbackChain
     /// <exception cref="FontFormatException">A font's data is malformed.</exception>
     public IReadOnlyList<ShapedCluster> ShapeRun(ReadOnlySpan<char> text, bool rightToLeft = false, ShapingOptions? options = null)
     {
-        if (text.Length > TextShaping.MaxRunLength)
-        {
-            throw new ArgumentException("The text is too long.", nameof(text));
-        }
+        TextShaping.ThrowIfTooLong(text);
+        ShapeScratch scratch = ShapeScratch.Current;
+        ShapedRun temp = scratch.Temp;
+        temp.Clear();
+        ShapeAll(text, temp, rightToLeft, options);
+        return TextShaping.ToClusters(temp, scratch);
+    }
 
-        var clusters = new List<ShapedCluster>();
+    /// <summary>
+    /// Shapes a run through the chain like <see cref="ShapeRun(ReadOnlySpan{char}, bool, ShapingOptions?)"/> into a reusable
+    /// <see cref="ShapedRun"/>, with no allocation per call once the result and the calling thread have warmed up. Each cluster's
+    /// <see cref="ShapedClusterRange.FaceIndex"/> says which face shaped it.
+    /// </summary>
+    /// <param name="text">The run. Lone surrogates are shaped as U+FFFD.</param>
+    /// <param name="result">Receives the clusters and glyphs; its previous contents are replaced.</param>
+    /// <param name="rightToLeft">Whether the run is right to left.</param>
+    /// <param name="options">Language, kerning and features; the defaults when <see langword="null"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="result"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">The text is longer than <see cref="TextShaping.MaxRunLength"/>.</exception>
+    /// <exception cref="FontFormatException">A font's data is malformed. <paramref name="result"/> is then empty.</exception>
+    public void ShapeRun(ReadOnlySpan<char> text, ShapedRun result, bool rightToLeft = false, ShapingOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        TextShaping.ThrowIfTooLong(text);
+        result.Clear();
+        try
+        {
+            ShapeAll(text, result, rightToLeft, options);
+        }
+        catch (FontFormatException)
+        {
+            result.Clear();
+            throw;
+        }
+    }
+
+    private void ShapeAll(ReadOnlySpan<char> text, ShapedRun clusters, bool rightToLeft, ShapingOptions? options)
+    {
         uint language = Languages.ToTag(options?.Language);
         FeatureSet features = TextShaping.FeaturesOf(options);
         uint script = 0;
@@ -96,6 +128,5 @@ public sealed class FontFallbackChain
         }
 
         TextShaping.ShapeInto(clusters, text[segmentStart..], segmentStart, _faces[segmentFace], segmentFace, rightToLeft, language, features, ref script);
-        return clusters;
     }
 }

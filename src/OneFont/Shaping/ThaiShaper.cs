@@ -50,7 +50,7 @@ internal sealed class ThaiShaper : ScriptShaper
             return null;
         }
 
-        var buffer = new GlyphBuffer(codePoints.Length + 4);
+        GlyphBuffer buffer = GlyphBuffer.Rent(codePoints.Length + 4);
         for (int k = 0; k < codePoints.Length; k++)
         {
             int cp = codePoints[k];

@@ -21,15 +21,15 @@ internal sealed partial class Engine
     // charged more: a table made only of broken subtables runs out of budget quickly.
     private const int BrokenSubtableCost = 2048;
 
-    private readonly LayoutTable _table;
-    private readonly Gdef? _gdef;
-    private readonly GlyphBuffer _buf;
-    private readonly int _numGlyphs;
-    private readonly bool _gpos;
-    private readonly long _maxOps;
-    private readonly int _maxGlyphs;
+    private LayoutTable _table;
+    private Gdef? _gdef;
+    private GlyphBuffer _buf;
+    private int _numGlyphs;
+    private bool _gpos;
+    private long _maxOps;
+    private int _maxGlyphs;
     private readonly int[][] _match = new int[MaxDepth + 2][];
-    private readonly bool _rtl;
+    private bool _rtl;
     private uint _mask;
     private int _flags;
     private int _markSet;
@@ -40,7 +40,23 @@ internal sealed partial class Engine
 
     public Engine(LayoutTable table, Gdef? gdef, GlyphBuffer buffer, int numGlyphs, int textLength, bool rtl = false)
     {
+        Reset(table, gdef, buffer, numGlyphs, textLength, rtl);
+    }
+
+    /// <summary>Points the engine at a new run, as the constructor does; the match arrays it grew are kept.</summary>
+    [System.Diagnostics.CodeAnalysis.MemberNotNull(nameof(_table), nameof(_buf))]
+    public void Reset(LayoutTable table, Gdef? gdef, GlyphBuffer buffer, int numGlyphs, int textLength, bool rtl = false)
+    {
         _rtl = rtl;
+        _mask = 0;
+        _flags = 0;
+        _markSet = 0;
+        _value = 0;
+        _depth = 0;
+        _ops = 0;
+        _ligCounter = 0;
+        Exhausted = false;
+        KeepJoiners = false;
         _table = table;
         _gdef = gdef;
         _buf = buffer;

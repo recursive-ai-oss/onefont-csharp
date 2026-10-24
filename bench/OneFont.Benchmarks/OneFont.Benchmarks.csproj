@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>$(LibName).Benchmarks</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- Set OldOnly=true to build the rows that use the 1.0 API only (for before/after against an older checkout). -->
+    <NoWarn>$(NoWarn);CA1822;CA1002;CA1819</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System" />
+    <Using Include="System.IO" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Collections.Generic" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="../../tests/testdata/fonts/NotoSansArabic-Subset-Regular.ttf" Link="fonts/NotoSansArabic-Subset-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../tests/testdata/fonts/NotoSansDevanagari-Subset-Regular.ttf" Link="fonts/NotoSansDevanagari-Subset-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../tests/testdata/fonts/NotoSans-Subset-Regular.ttf" Link="fonts/NotoSans-Subset-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/OneFont/OneFont.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(OldOnly)' == 'true'">
+    <Compile Remove="NewPath*.cs" />
+  </ItemGroup>
+
+</Project>

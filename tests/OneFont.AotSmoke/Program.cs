@@ -45,6 +45,20 @@ internal static class Program
         IReadOnlyList<ShapedCluster> mixed = chain.ShapeRun("a\u0915");
         Check("fallback", mixed.Count == 2 && mixed[0].FaceIndex == 0 && mixed[1].FaceIndex == 1);
 
+        // The reusable result: the same clusters and glyphs in flat arrays, twice through one object.
+        var run = new ShapedRun();
+        for (int i = 0; i < 2; i++)
+        {
+            TextShaping.ShapeRun("\u0628\u0628\u0628", arabic, run, rightToLeft: true);
+            Check("run arabic", run.ClusterCount == 3 && run.GlyphCount == 3 && run.Glyphs[0].GlyphId == beh[0].Glyphs[0].GlyphId && run.Clusters[2].Start == 2);
+            chain.ShapeRun("a\u0915", run);
+            Check("run fallback", run.ClusterCount == 2 && run.Clusters[1].FaceIndex == 1 && run.GlyphsOf(run.Clusters[1]).Length == mixed[1].Glyphs.Length);
+        }
+
+        var spanLevels = new byte[8];
+        TextShaping.GetBidiLevels("ab \u05D0\u05D1 cd", TextDirection.Auto, spanLevels, out _);
+        Check("bidi levels into a buffer", spanLevels[3] == 1 && spanLevels[0] == 0);
+
         Console.WriteLine(failures == 0 ? "OneFont AOT smoke: ok" : $"OneFont AOT smoke: {failures} failure(s)");
         return failures == 0 ? 0 : 1;
     }

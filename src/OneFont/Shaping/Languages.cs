@@ -23,6 +23,25 @@ internal static class Languages
             return 0;
         }
 
+        // Callers pass the same few tags over and over; the parse below allocates.
+        if (Cache.TryGetValue(language, out uint known))
+        {
+            return known;
+        }
+
+        uint tag = Parse(language);
+        if (Cache.Count < 256)
+        {
+            Cache[language] = tag;
+        }
+
+        return tag;
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, uint> Cache = new();
+
+    private static uint Parse(string language)
+    {
         string s = language.Trim();
         if (s.Length is 3 or 4 && s.All(c => c is >= 'A' and <= 'Z' or >= '0' and <= '9'))
         {
