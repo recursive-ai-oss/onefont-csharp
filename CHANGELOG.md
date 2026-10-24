@@ -4,6 +4,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-24
+
 - Added `TextShaping.ShapeCodePoints`: shapes a run given as code points with caller-supplied cluster values and a script carried from run to run (`ref uint script`), so digits and spaces after Arabic take the Arabic script. It returns `CodePointGlyph` values in the shaper's own order, each with its code point and cluster.
 - Added `ShapedRun.Origins` (`ShapedGlyphOrigin`): for every glyph of a run the first code point it stands for, its cluster offset and its position in the shaper's order before clusters were put in logical order.
 - Added code point bidi: `TextShaping.ResolveBidiLevels` (keeps the rule X9 marker `TextShaping.BidiRemoved` instead of filling it) and `TextShaping.ResetTrailingWhitespace` (rule L1 per line). `GetVisualOrder(levels, order)` accepts levels with the marker and returns how many characters are shown.
@@ -22,5 +24,6 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - First version. Fonts: TrueType, OpenType with CFF outlines, TrueType Collections. Shaping: GSUB and GPOS with every lookup type and flag; Arabic, Indic, Universal Shaping Engine, Thai and Lao shapers. Unicode 17: bidi levels and order (UAX #9), line break opportunities (UAX #14), grapheme boundaries (UAX #29). Font fallback chain. Glyph outlines through a sink.
 - `TextShaping.ShapeRun` returns clusters that start at offset 0 and follow each other to the end of the text, even when the shaper drops characters (a joiner before an Indic letter).
 
+[1.2.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.2.0
 [1.1.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.1.0
 [1.0.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.0.0
