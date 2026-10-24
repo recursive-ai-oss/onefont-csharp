@@ -75,8 +75,19 @@ internal struct GlyphPos
 }
 
 /// <summary>The glyph run a shaper works on: glyph records that substitutions edit in place, and parallel positions once positioning starts.</summary>
+/// <remarks>
+/// Buffers are pooled per thread (<see cref="Rent"/>, <see cref="Return"/>) so shaping does not allocate record arrays per run. A rented
+/// buffer is empty; the arrays may hold stale records beyond <see cref="Count"/> and nothing reads them.
+/// </remarks>
 internal sealed class GlyphBuffer
 {
+    // Buffers bigger than this are not kept, so one huge run does not pin memory in an idle thread.
+    private const int RetainedRecords = 1 << 14;
+    private const int PoolSize = 4;
+
+    [ThreadStatic]
+    private static GlyphBuffer?[]? t_pool;
+
     public GlyphInfo[] Info;
     public GlyphPos[] Pos = [];
     private int _count;
@@ -87,6 +98,51 @@ internal sealed class GlyphBuffer
     }
 
     public int Count => _count;
+
+    /// <summary>Takes an empty buffer with room for <paramref name="capacity"/> records from the calling thread's pool.</summary>
+    public static GlyphBuffer Rent(int capacity)
+    {
+        GlyphBuffer?[]? pool = t_pool;
+        if (pool is not null)
+        {
+            for (int i = 0; i < pool.Length; i++)
+            {
+                if (pool[i] is { } b)
+                {
+                    pool[i] = null;
+                    b._count = 0;
+                    if (b.Info.Length < capacity)
+                    {
+                        b.Info = new GlyphInfo[capacity];
+                    }
+
+                    return b;
+                }
+            }
+        }
+
+        return new GlyphBuffer(capacity);
+    }
+
+    /// <summary>Gives a buffer back to the calling thread's pool; the caller must not use it afterwards.</summary>
+    public static void Return(GlyphBuffer buffer)
+    {
+        if (buffer.Info.Length > RetainedRecords)
+        {
+            return;
+        }
+
+        buffer._count = 0;
+        GlyphBuffer?[] pool = t_pool ??= new GlyphBuffer?[PoolSize];
+        for (int i = 0; i < pool.Length; i++)
+        {
+            if (pool[i] is null)
+            {
+                pool[i] = buffer;
+                return;
+            }
+        }
+    }
 
     public void Add(in GlyphInfo g)
     {
@@ -107,6 +163,7 @@ internal sealed class GlyphBuffer
         }
 
         Array.Copy(Info, index, Info, index + n, _count - index);
+        Array.Clear(Info, index, n);
         _count += n;
     }
 
@@ -116,13 +173,17 @@ internal sealed class GlyphBuffer
         _count--;
     }
 
-    /// <summary>Allocates the position records once substitution is finished; every glyph starts unattached.</summary>
+    /// <summary>Prepares the position records once substitution is finished; every glyph starts unattached and unmoved.</summary>
     public void AllocatePositions()
     {
-        Pos = new GlyphPos[_count];
+        if (Pos.Length < _count)
+        {
+            Pos = new GlyphPos[Math.Max(_count, Info.Length)];
+        }
+
         for (int i = 0; i < _count; i++)
         {
-            Pos[i].AttachTo = -1;
+            Pos[i] = new GlyphPos { AttachTo = -1 };
         }
     }
 }

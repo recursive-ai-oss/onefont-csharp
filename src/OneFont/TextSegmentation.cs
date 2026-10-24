@@ -19,17 +19,33 @@ public static class TextSegmentation
     /// </returns>
     public static LineBreakOpportunity[] GetLineBreakOpportunities(ReadOnlySpan<char> text)
     {
+        var result = new LineBreakOpportunity[text.Length + 1];
+        GetLineBreakOpportunities(text, result);
+        return result;
+    }
+
+    /// <summary>
+    /// Finds the line break opportunities like <see cref="GetLineBreakOpportunities(ReadOnlySpan{char})"/> into a buffer the caller owns,
+    /// without allocating.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="opportunities">Receives <c>text.Length + 1</c> entries, laid out as the array form returns them; it holds at least that many.</param>
+    /// <exception cref="ArgumentException"><paramref name="opportunities"/> is shorter than <c>text.Length + 1</c>.</exception>
+    public static void GetLineBreakOpportunities(ReadOnlySpan<char> text, Span<LineBreakOpportunity> opportunities)
+    {
+        if (opportunities.Length < text.Length + 1)
+        {
+            throw new ArgumentException("The opportunities buffer is shorter than the text plus one.", nameof(opportunities));
+        }
+
         byte[] raw = ArrayPool<byte>.Shared.Rent(text.Length + 1);
         try
         {
             LineBreaker.Fill(text, raw);
-            var result = new LineBreakOpportunity[text.Length + 1];
-            for (int i = 0; i < result.Length; i++)
+            for (int i = 0; i <= text.Length; i++)
             {
-                result[i] = (LineBreakOpportunity)raw[i];
+                opportunities[i] = (LineBreakOpportunity)raw[i];
             }
-
-            return result;
         }
         finally
         {

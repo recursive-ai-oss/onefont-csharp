@@ -81,7 +81,7 @@ internal static class TextShaper
             GlyphBuffer? buffer = shaper.BuildRun(face, codePoints.Slice(start, end - start), clusters.Slice(start, end - start));
             if (buffer is null)
             {
-                buffer = new(end - start);
+                buffer = GlyphBuffer.Rent(end - start);
                 OtFace layout = face.Layout;
                 bool classes = layout.Gdef is { HasGlyphClasses: true };
                 for (int k = start; k < end; k++)
@@ -93,7 +93,15 @@ internal static class TextShaper
                 }
             }
 
-            ShapeBuffer(face, buffer, shaper, runScript, language, features, end - start, output, rtl);
+            try
+            {
+                ShapeBuffer(face, buffer, shaper, runScript, language, features, end - start, output, rtl);
+            }
+            finally
+            {
+                GlyphBuffer.Return(buffer);
+            }
+
             start = end;
         }
     }
@@ -153,13 +161,21 @@ internal static class TextShaper
             {
                 int end = Math.Min(start + ChunkGlyphs, buffer.Count);
                 end = end < buffer.Count ? SyllableSupport.SyllableEnd(buffer, end - 1) : end; // at most one syllable (48 glyphs) longer
-                var part = new GlyphBuffer(end - start + 8);
-                for (int i = start; i < end; i++)
+                GlyphBuffer part = GlyphBuffer.Rent(end - start + 8);
+                try
                 {
-                    part.Add(buffer.Info[i]);
+                    for (int i = start; i < end; i++)
+                    {
+                        part.Add(buffer.Info[i]);
+                    }
+
+                    ShapeBuffer(face, part, shaper, script, language, features, part.Count, output, rtl);
+                }
+                finally
+                {
+                    GlyphBuffer.Return(part);
                 }
 
-                ShapeBuffer(face, part, shaper, script, language, features, part.Count, output, rtl);
                 start = end;
             }
 
@@ -186,10 +202,20 @@ internal static class TextShaper
             }
         }
 
+        ShapeScratch scratch = ShapeScratch.Current;
         ShapeContext? context = null;
         if (shaper.Reorders)
         {
-            context = new ShapeContext(face, layout, plan, buffer);
+            context = scratch.Context;
+            if (context is null)
+            {
+                context = scratch.Context = new ShapeContext(face, layout, plan, buffer);
+            }
+            else
+            {
+                context.Reset(face, layout, plan, buffer);
+            }
+
             shaper.Prepare(context);
         }
         else
@@ -197,7 +223,7 @@ internal static class TextShaper
             shaper.PrepareRun(buffer);
         }
 
-        Engine? engine = layout.Gsub is { } gsub ? new Engine(gsub, layout.Gdef, buffer, face.NumGlyphs, textLength, rtl) : null;
+        Engine? engine = layout.Gsub is { } gsub ? scratch.GetEngine(false, gsub, layout.Gdef, buffer, face.NumGlyphs, textLength, rtl) : null;
         if (engine is not null)
         {
             engine.KeepJoiners = shaper.KeepsJoiners;
@@ -237,7 +263,7 @@ internal static class TextShaper
 
         if (layout.Gpos is { } gpos && plan.Gpos.Length > 0)
         {
-            new Engine(gpos, layout.Gdef, buffer, face.NumGlyphs, textLength, rtl).Run(plan.Gpos);
+            scratch.GetEngine(true, gpos, layout.Gdef, buffer, face.NumGlyphs, textLength, rtl).Run(plan.Gpos);
             Engine.ResolveAttachments(buffer);
         }
 

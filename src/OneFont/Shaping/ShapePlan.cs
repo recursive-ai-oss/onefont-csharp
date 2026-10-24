@@ -30,25 +30,27 @@ internal sealed class FeatureSet : IEquatable<FeatureSet>
     /// <summary>Builds a set from settings in order; a repeated tag takes its last value.</summary>
     public static FeatureSet Create(IEnumerable<(uint Tag, int Value)> settings)
     {
-        var map = new SortedDictionary<uint, int>();
+        // Few settings: keep them sorted by tag in a list, the last value of a tag winning.
+        var items = new List<(uint Tag, int Value)>();
         foreach ((uint tag, int value) in settings)
         {
-            map[tag] = value;
+            int at = 0;
+            while (at < items.Count && items[at].Tag < tag)
+            {
+                at++;
+            }
+
+            if (at < items.Count && items[at].Tag == tag)
+            {
+                items[at] = (tag, value);
+            }
+            else
+            {
+                items.Insert(at, (tag, value));
+            }
         }
 
-        if (map.Count == 0)
-        {
-            return Empty;
-        }
-
-        var items = new (uint, int)[map.Count];
-        int i = 0;
-        foreach (KeyValuePair<uint, int> kv in map)
-        {
-            items[i++] = (kv.Key, kv.Value);
-        }
-
-        return new FeatureSet(items);
+        return items.Count == 0 ? Empty : new FeatureSet(items.ToArray());
     }
 
     public bool TryGet(uint tag, out int value)
@@ -128,15 +130,32 @@ internal abstract class ScriptShaper
 }
 
 /// <summary>What a script shaper needs to see while it works on a run: the font, the plan and the glyphs.</summary>
-internal sealed class ShapeContext(FontData face, OtFace layout, ShapePlan plan, GlyphBuffer buffer)
+internal sealed class ShapeContext
 {
-    public FontData Face { get; } = face;
+    public ShapeContext(FontData face, OtFace layout, ShapePlan plan, GlyphBuffer buffer)
+    {
+        Face = face;
+        Layout = layout;
+        Plan = plan;
+        Buffer = buffer;
+    }
 
-    public OtFace Layout { get; } = layout;
+    public FontData Face { get; private set; }
 
-    public ShapePlan Plan { get; } = plan;
+    public OtFace Layout { get; private set; }
 
-    public GlyphBuffer Buffer { get; } = buffer;
+    public ShapePlan Plan { get; private set; }
+
+    public GlyphBuffer Buffer { get; private set; }
+
+    /// <summary>Points the context at a new run so one object serves every run of a thread.</summary>
+    public void Reset(FontData face, OtFace layout, ShapePlan plan, GlyphBuffer buffer)
+    {
+        Face = face;
+        Layout = layout;
+        Plan = plan;
+        Buffer = buffer;
+    }
 }
 
 internal static class Tag

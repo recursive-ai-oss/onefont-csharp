@@ -5,6 +5,7 @@
   <ItemGroup>
     <!-- Used by the test and fuzz projects only. The library depends on nothing outside the shared framework. -->
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="SharpFuzz" Version="2.2.0" />
     <!-- A black box for agreement tests, used through its public API only. -->
     <PackageVersion Include="SixLabors.Fonts" Version="2.1.3" />

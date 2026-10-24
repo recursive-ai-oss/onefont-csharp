@@ -14,9 +14,12 @@ public readonly record struct ShapedGlyph(int GlyphId, int XAdvance, int XOffset
 /// </summary>
 public sealed class ShapedCluster
 {
+    // The glyphs of all clusters of one call share an array; this cluster's are a slice of it.
     private readonly ShapedGlyph[] _glyphs;
+    private readonly int _first;
+    private readonly int _count;
 
-    internal ShapedCluster(int start, int length, int faceIndex, int advance, bool missing, ShapedGlyph[] glyphs)
+    internal ShapedCluster(int start, int length, int faceIndex, int advance, bool missing, ShapedGlyph[] glyphs, int first, int count)
     {
         Start = start;
         Length = length;
@@ -24,6 +27,8 @@ public sealed class ShapedCluster
         Advance = advance;
         HasMissingGlyph = missing;
         _glyphs = glyphs;
+        _first = first;
+        _count = count;
     }
 
     /// <summary>Gets the offset of the cluster's first character in the shaped text, in UTF-16 code units.</summary>
@@ -49,5 +54,5 @@ public sealed class ShapedCluster
     /// span is empty only when the shaper dropped every character of the run (a lone zero width joiner next to an Indic letter), in
     /// which case the run is one cluster with no glyphs and an advance of 0.
     /// </summary>
-    public ReadOnlySpan<ShapedGlyph> Glyphs => _glyphs;
+    public ReadOnlySpan<ShapedGlyph> Glyphs => new(_glyphs, _first, _count);
 }

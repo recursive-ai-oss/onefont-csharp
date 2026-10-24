@@ -1,3 +1,4 @@
+using System.Buffers;
 using OneFont.Fonts;
 
 namespace OneFont.Shaping;
@@ -500,38 +501,49 @@ internal sealed partial class Engine
     {
         GlyphPos[] pos = buffer.Pos;
         long[]? prefix = null;
-        for (int i = 0; i < buffer.Count; i++)
+        try
         {
-            int t = pos[i].AttachTo;
-            if (t < 0 || t >= buffer.Count || t == i)
+            for (int i = 0; i < buffer.Count; i++)
             {
-                continue;
-            }
-
-            if (pos[i].Cursive)
-            {
-                pos[i].YOffset += pos[t].YOffset + pos[i].AttachY;
-                continue;
-            }
-
-            if (t > i)
-            {
-                continue;
-            }
-
-            if (prefix is null)
-            {
-                prefix = new long[buffer.Count + 1];
-                for (int k = 0; k < buffer.Count; k++)
+                int t = pos[i].AttachTo;
+                if (t < 0 || t >= buffer.Count || t == i)
                 {
-                    prefix[k + 1] = prefix[k] + pos[k].XAdvance;
+                    continue;
                 }
-            }
 
-            long travel = prefix[i] - prefix[t];
-            pos[i].XOffset = (int)Math.Clamp(pos[t].XOffset + pos[i].AttachX - travel + pos[i].XOffset, int.MinValue / 2, int.MaxValue / 2);
-            pos[i].YOffset += pos[t].YOffset + pos[i].AttachY;
-            pos[i].RtlShift = (int)Math.Clamp(travel + pos[i].XAdvance + pos[t].RtlShift, int.MinValue / 2, int.MaxValue / 2);
+                if (pos[i].Cursive)
+                {
+                    pos[i].YOffset += pos[t].YOffset + pos[i].AttachY;
+                    continue;
+                }
+
+                if (t > i)
+                {
+                    continue;
+                }
+
+                if (prefix is null)
+                {
+                    prefix = ArrayPool<long>.Shared.Rent(buffer.Count + 1);
+                    prefix[0] = 0;
+                    for (int k = 0; k < buffer.Count; k++)
+                    {
+                        prefix[k + 1] = prefix[k] + pos[k].XAdvance;
+                    }
+                }
+
+                long travel = prefix[i] - prefix[t];
+                pos[i].XOffset = (int)Math.Clamp(pos[t].XOffset + pos[i].AttachX - travel + pos[i].XOffset, int.MinValue / 2, int.MaxValue / 2);
+                pos[i].YOffset += pos[t].YOffset + pos[i].AttachY;
+                pos[i].RtlShift = (int)Math.Clamp(travel + pos[i].XAdvance + pos[t].RtlShift, int.MinValue / 2, int.MaxValue / 2);
+            }
+        }
+        finally
+        {
+            if (prefix is not null)
+            {
+                ArrayPool<long>.Shared.Return(prefix);
+            }
         }
     }
 }

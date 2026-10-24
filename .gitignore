@@ -15,6 +15,7 @@
 !/THIRD-PARTY-NOTICES.md
 !/src/
 !/tests/
+!/bench/
 !/fuzz/
 !/tools/
 !/docs/
