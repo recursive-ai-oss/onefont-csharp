@@ -39,6 +39,8 @@ internal static class Program
         LineBreakOpportunity[] breaks = TextSegmentation.GetLineBreakOpportunities("ab cd");
         Check("line breaks", breaks[3] == LineBreakOpportunity.Allowed && breaks[1] == LineBreakOpportunity.None);
         Check("graphemes", ((ReadOnlySpan<int>)TextSegmentation.GetGraphemeBoundaries("e\u0301a")).SequenceEqual([0, 2, 3]));
+        Check("word boundaries", ((ReadOnlySpan<int>)TextSegmentation.GetWordBoundaries("can't go")).SequenceEqual([0, 5, 6, 8]));
+        Check("sentence boundaries", ((ReadOnlySpan<int>)TextSegmentation.GetSentenceBoundaries("Hi. Yo!")).SequenceEqual([0, 4, 7]));
 
         // Fallback: the Devanagari letter comes from the second face.
         var chain = new FontFallbackChain([latin, deva]);

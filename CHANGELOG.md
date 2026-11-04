@@ -4,6 +4,12 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.4.0-preview.1]
+
+- Added UAX #29 word and sentence boundaries to `TextSegmentation`, next to the grapheme API: `GetWordBoundaries`, `FillWordStarts` and `GetNextWordBoundary` (section 4), and `GetSentenceBoundaries`, `FillSentenceStarts` and `GetNextSentenceBoundary` (section 5). They follow the default rules with no tailoring on the Unicode 17.0.0 data, and `WordBreakTest.txt` and `SentenceBreakTest.txt` of that release pass in full. Both walk the text once, in time linear in its length.
+- The table generator now also produces the Word_Break and Sentence_Break tables and copies the two new conformance files; it records the SHA-256 of its inputs in the generated file.
+- Existing behaviour and output are unchanged.
+
 ## [1.3.0] - 2026-10-24
 
 - Added a `TextShaping.ShapeCodePoints` overload that fills a reusable `CodePointRun` (`Count`, `Glyphs`, indexer) instead of a `List<CodePointGlyph>`: the same glyphs and carried script, no allocation per call once the run has grown. The list overload gives identical output and now shares the code.

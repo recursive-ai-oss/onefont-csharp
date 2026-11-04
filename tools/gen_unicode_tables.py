@@ -4,10 +4,10 @@
 Usage: gen_unicode_tables.py [--version 17.0.0] [--cache DIR] [--test-data DIR]
 
 Downloads the UCD files it needs into --cache (default: ./ucd-cache, never committed), writes the compact property
-tables used for line breaking (UAX #14) and grapheme cluster boundaries (UAX #29), the Indic and Universal Shaping Engine
+tables used for line breaking (UAX #14), grapheme cluster, word and sentence boundaries (UAX #29), the Indic and Universal Shaping Engine
 tables (IndicData.g.cs: script, Indic_Syllabic_Category, Indic_Positional_Category and the canonical decompositions of the
-Indic-style scripts' vowel signs and nukta consonants), and copies LineBreakTest.txt and
-GraphemeBreakTest.txt into --test-data (default: tests/testdata/unicode) for the conformance tests.
+Indic-style scripts' vowel signs and nukta consonants), and copies LineBreakTest.txt,
+GraphemeBreakTest.txt, WordBreakTest.txt and SentenceBreakTest.txt into --test-data (default: tests/testdata/unicode) for the conformance tests.
 
 Tables are two-stage tries over 64-code-point blocks with identical blocks stored once. Code points from U+40000 up
 (except the tag/variation-selector block at U+E0000) share one default value.
@@ -15,6 +15,7 @@ Tables are two-stage tries over 64-code-point blocks with identical blocks store
 The Unicode data files are (c) Unicode, Inc. and used under the Unicode License v3 (see THIRD-PARTY-NOTICES.md).
 """
 import argparse
+import hashlib
 import os
 import re
 import shutil
@@ -32,14 +33,24 @@ FILES = {
     "Scripts.txt": "Scripts.txt",
     "IndicSyllabicCategory.txt": "IndicSyllabicCategory.txt",
     "IndicPositionalCategory.txt": "IndicPositionalCategory.txt",
+    "WordBreakProperty.txt": "auxiliary/WordBreakProperty.txt",
+    "SentenceBreakProperty.txt": "auxiliary/SentenceBreakProperty.txt",
     "LineBreakTest.txt": "auxiliary/LineBreakTest.txt",
     "GraphemeBreakTest.txt": "auxiliary/GraphemeBreakTest.txt",
+    "WordBreakTest.txt": "auxiliary/WordBreakTest.txt",
+    "SentenceBreakTest.txt": "auxiliary/SentenceBreakTest.txt",
 }
 
 # Classes that survive the resolution of AI, SG, XX, SA and CJ (UAX #14 LB1). The order is the numeric value.
 LB_CLASSES = ("BK CR LF CM NL WJ ZW GL SP ZWJ B2 BA BB HY HH CB CL CP EX IN NS OP QU IS NU PO PR SY "
               "AK AL AP AS EB EM H2 H3 HL ID JL JV JT RI VF VI").split()
 GB_CLASSES = "Other CR LF Control Extend ZWJ RI Prepend SpacingMark L V T LV LVT".split()
+# UAX #29 section 4.1.1 and 5.1.1 property values; the order is the numeric value.
+WB_CLASSES = ("Other CR LF Newline Extend ZWJ RegionalIndicator Format Katakana HebrewLetter ALetter SingleQuote "
+              "DoubleQuote MidNumLet MidLetter MidNum Numeric ExtendNumLet WSegSpace").split()
+WB_LONG = {"Regional_Indicator": "RegionalIndicator", "Hebrew_Letter": "HebrewLetter", "Single_Quote": "SingleQuote",
+           "Double_Quote": "DoubleQuote"}
+SB_CLASSES = "Other CR LF Extend Sep Format Sp Lower Upper OLetter Numeric ATerm SContinue STerm Close".split()
 INCB = {"None": 0, "Consonant": 1, "Linker": 2, "Extend": 3}
 
 MAX = 0x110000
@@ -247,6 +258,8 @@ def main():
                 incb[c] = INCB[v[1]]
 
     lbid = {n: i for i, n in enumerate(LB_CLASSES)}
+    wbid = {n: i for i, n in enumerate(WB_CLASSES)}
+    sbid = {n: i for i, n in enumerate(SB_CLASSES)}
     gbid = {n: i for i, n in enumerate(GB_CLASSES)}
 
     def lbval(c):
@@ -268,22 +281,45 @@ def main():
         v |= incb[c] << 5
         return v
 
+    wb = ["Other"] * MAX
+    fill(wb, p("WordBreakProperty.txt"), mapper=lambda v: WB_LONG.get(v[0], v[0]))
+    sb = ["Other"] * MAX
+    fill(sb, p("SentenceBreakProperty.txt"))
+
+    # Word value: bits 0-4 Word_Break class, bit 7 Extended_Pictographic (rule WB3c).
+    def wbval(c):
+        return wbid[wb[c]] | (0x80 if extpict[c] else 0)
+
+    def sbval(c):
+        return sbid[sb[c]]
+
     li, lbk = compress(lbval, None)
     gi, gbk = compress(gbval, None)
+    wi, wbk = compress(wbval, None)
+    si, sbk = compress(sbval, None)
     # Default value for everything outside the covered ranges (unassigned or private use, no special properties).
     lb_default = lbid["AL"]
     gb_default = 0
     assert all(lbval(c) == lb_default for c in range(0x40000, 0xE0000, 997)), "uncovered range is not uniform"
     assert all(gbval(c) == gb_default for c in range(0x40000, 0xE0000, 997))
+    # Word and sentence tables use the same coverage; everything else must be the default (0, Other).
+    assert all(wbval(c) == 0 and sbval(c) == 0 for c in range(0x40000, 0xE0000))
+    assert all(wbval(c) == 0 and sbval(c) == 0 for c in range(0xE1000, MAX))
     assert all(lbval(c) == lb_default for c in range(0xE1000, MAX, 997) if gc[c] in ("Co", "Cn") and lb[c] == "XX")
 
     lbflat = [v for b in lbk for v in b]
     gbflat = [v for b in gbk for v in b]
+    wbflat = [v for b in wbk for v in b]
+    sbflat = [v for b in sbk for v in b]
+    hashes = {n: hashlib.sha256(open(p(n), "rb").read()).hexdigest() for n in sorted(FILES) if not n.endswith("Test.txt")}
 
     with open(a.out, "w", encoding="utf-8", newline="\n") as f:
         f.write("// <auto-generated>\n")
         f.write(f"// Generated by tools/gen_unicode_tables.py from the Unicode Character Database {a.version}. Do not edit.\n")
         f.write("// Unicode data files are Copyright (c) Unicode, Inc. and used under the Unicode License v3 (THIRD-PARTY-NOTICES.md).\n")
+        f.write("// Inputs (SHA-256):\n")
+        for n, h in hashes.items():
+            f.write(f"//   {n} {h}\n")
         f.write("// </auto-generated>\n")
         f.write("namespace OneFont.Unicode;\n\n")
         f.write("/// <summary>Line_Break classes after the default resolution of AI, SG, XX, SA and CJ (UAX #14 rule LB1).</summary>\n")
@@ -294,6 +330,14 @@ def main():
         f.write("/// <summary>Grapheme_Cluster_Break values.</summary>\n")
         f.write("internal enum GraphemeClass : byte\n{\n")
         for i, n in enumerate(GB_CLASSES):
+            f.write(f"    {n} = {i},\n")
+        f.write("}\n\n")
+        f.write("/// <summary>Word_Break values (UAX #29 section 4.1.1).</summary>\ninternal enum WordBreakClass : byte\n{\n")
+        for i, n in enumerate(WB_CLASSES):
+            f.write(f"    {n} = {i},\n")
+        f.write("}\n\n")
+        f.write("/// <summary>Sentence_Break values (UAX #29 section 5.1.1).</summary>\ninternal enum SentenceBreakClass : byte\n{\n")
+        for i, n in enumerate(SB_CLASSES):
             f.write(f"    {n} = {i},\n")
         f.write("}\n\n")
         f.write("/// <summary>Packed per-code-point property tables. The 16-bit tables hold little-endian pairs of bytes.</summary>\n")
@@ -307,13 +351,18 @@ def main():
         f.write(emit_array("LineBreakBlocks", "ushort", lbflat) + "\n\n")
         f.write("    // Grapheme value: bits 0-3 class, 4 Extended_Pictographic, 5-6 Indic_Conjunct_Break (0 none, 1 consonant, 2 linker, 3 extend).\n")
         f.write(emit_array("GraphemeIndex", "ushort", gi) + "\n\n")
-        f.write(emit_array("GraphemeBlocks", "byte", gbflat) + "\n")
+        f.write(emit_array("GraphemeBlocks", "byte", gbflat) + "\n\n")
+        f.write("    // Word value: bits 0-4 Word_Break class, bit 7 Extended_Pictographic. Sentence value: the Sentence_Break class.\n")
+        f.write(emit_array("WordIndex", "ushort", wi) + "\n\n")
+        f.write(emit_array("WordBlocks", "byte", wbflat) + "\n\n")
+        f.write(emit_array("SentenceIndex", "ushort", si) + "\n\n")
+        f.write(emit_array("SentenceBlocks", "byte", sbflat) + "\n")
         f.write("}\n")
 
     write_indic(a, p)
 
     os.makedirs(a.test_data, exist_ok=True)
-    for n in ("LineBreakTest.txt", "GraphemeBreakTest.txt"):
+    for n in ("LineBreakTest.txt", "GraphemeBreakTest.txt", "WordBreakTest.txt", "SentenceBreakTest.txt"):
         shutil.copyfile(p(n), os.path.join(a.test_data, n))
     nbytes = len(li) * 2 + len(lbflat) * 2 + len(gi) * 2 + len(gbflat)
     print(f"line break: {len(lbk)} blocks; grapheme: {len(gbk)} blocks; table data {nbytes} bytes", file=sys.stderr)

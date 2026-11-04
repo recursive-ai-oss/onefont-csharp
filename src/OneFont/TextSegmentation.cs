@@ -3,7 +3,7 @@ using OneFont.Unicode;
 
 namespace OneFont;
 
-/// <summary>Unicode text segmentation: where a line may break (UAX #14) and where a user-perceived character ends (UAX #29).</summary>
+/// <summary>Unicode text segmentation: where a line may break (UAX #14) and where a user-perceived character, a word or a sentence ends (UAX #29).</summary>
 public static class TextSegmentation
 {
     /// <summary>
@@ -112,5 +112,121 @@ public static class TextSegmentation
         }
 
         Graphemes.Fill(text, starts);
+    }
+
+    /// <summary>
+    /// Finds the word boundaries of a text (UAX #29 section 4, default rules WB1 to WB999, no tailoring): letters, digits and the
+    /// punctuation that joins them (an apostrophe in "can't", a point in "3.14") stay together; white space and other symbols stand
+    /// alone. The segments include punctuation and white space; keeping only those that hold a letter or digit is the caller's choice.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The UTF-16 index where each segment starts, ascending, followed by <c>text.Length</c>. Empty text gives <c>[0]</c>. Positions inside a surrogate pair are never boundaries; an unpaired surrogate is an ordinary character of no class.</returns>
+    public static int[] GetWordBoundaries(ReadOnlySpan<char> text)
+    {
+        var result = new List<int>();
+        int i = 0;
+        while (i < text.Length)
+        {
+            result.Add(i);
+            i = WordBreaker.Next(text, i);
+        }
+
+        result.Add(text.Length);
+        return result.ToArray();
+    }
+
+    /// <summary>Marks where word segments start (UAX #29 section 4), as plain bytes, one per UTF-16 offset.</summary>
+    /// <param name="text">The text.</param>
+    /// <param name="starts">Receives <c>text.Length + 1</c> entries: 1 at an offset where a segment starts (and always at <c>text.Length</c>), 0 inside a segment; it holds at least that many. Further entries are not touched.</param>
+    /// <exception cref="ArgumentException"><paramref name="starts"/> is shorter than <c>text.Length + 1</c>.</exception>
+    public static void FillWordStarts(ReadOnlySpan<char> text, Span<byte> starts)
+    {
+        if (starts.Length < text.Length + 1)
+        {
+            throw new ArgumentException("The starts buffer is shorter than the text plus one.", nameof(starts));
+        }
+
+        starts[..(text.Length + 1)].Clear();
+        int i = 0;
+        while (i < text.Length)
+        {
+            starts[i] = 1;
+            i = WordBreaker.Next(text, i);
+        }
+
+        starts[text.Length] = 1;
+    }
+
+    /// <summary>
+    /// Finds the end of the word segment that starts at an index (UAX #29 section 4), so a caller can walk a text one segment at a
+    /// time without building the whole boundary list. The cost is proportional to the segment, not the text.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="index">A boundary: 0 or a value this method or <see cref="GetWordBoundaries(ReadOnlySpan{char})"/> returned earlier. From any other index the text is read as if a segment started there.</param>
+    /// <returns>The UTF-16 index just past the segment; <c>text.Length</c> for the last segment and when <paramref name="index"/> equals <c>text.Length</c>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is negative or greater than <c>text.Length</c>.</exception>
+    public static int GetNextWordBoundary(ReadOnlySpan<char> text, int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, text.Length);
+        return WordBreaker.Next(text, index);
+    }
+
+    /// <summary>
+    /// Finds the sentence boundaries of a text (UAX #29 section 5, default rules SB1 to SB998, no tailoring and no abbreviation list):
+    /// a sentence ends after its terminator (. ? ! and their relatives), any closing quotes or brackets and the white space that
+    /// follows, unless the rules read the full stop as part of a number, an initial or a lower-case continuation.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The UTF-16 index where each sentence starts, ascending, followed by <c>text.Length</c>. Empty text gives <c>[0]</c>. A sentence keeps its trailing white space.</returns>
+    public static int[] GetSentenceBoundaries(ReadOnlySpan<char> text)
+    {
+        var result = new List<int>();
+        int i = 0;
+        while (i < text.Length)
+        {
+            result.Add(i);
+            i = SentenceBreaker.Next(text, i);
+        }
+
+        result.Add(text.Length);
+        return result.ToArray();
+    }
+
+    /// <summary>Marks where sentences start (UAX #29 section 5), as plain bytes, one per UTF-16 offset.</summary>
+    /// <param name="text">The text.</param>
+    /// <param name="starts">Receives <c>text.Length + 1</c> entries: 1 at an offset where a sentence starts (and always at <c>text.Length</c>), 0 inside a sentence; it holds at least that many. Further entries are not touched.</param>
+    /// <exception cref="ArgumentException"><paramref name="starts"/> is shorter than <c>text.Length + 1</c>.</exception>
+    public static void FillSentenceStarts(ReadOnlySpan<char> text, Span<byte> starts)
+    {
+        if (starts.Length < text.Length + 1)
+        {
+            throw new ArgumentException("The starts buffer is shorter than the text plus one.", nameof(starts));
+        }
+
+        starts[..(text.Length + 1)].Clear();
+        int i = 0;
+        while (i < text.Length)
+        {
+            starts[i] = 1;
+            i = SentenceBreaker.Next(text, i);
+        }
+
+        starts[text.Length] = 1;
+    }
+
+    /// <summary>
+    /// Finds the end of the sentence that starts at an index (UAX #29 section 5), so a caller can walk a text one sentence at a time.
+    /// Rule SB8 may look ahead past the terminator, up to the next terminator or paragraph separator.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="index">A boundary: 0 or a value this method or <see cref="GetSentenceBoundaries(ReadOnlySpan{char})"/> returned earlier. From any other index the text is read as if a sentence started there.</param>
+    /// <returns>The UTF-16 index just past the sentence; <c>text.Length</c> for the last sentence and when <paramref name="index"/> equals <c>text.Length</c>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is negative or greater than <c>text.Length</c>.</exception>
+    public static int GetNextSentenceBoundary(ReadOnlySpan<char> text, int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, text.Length);
+        return SentenceBreaker.Next(text, index);
     }
 }

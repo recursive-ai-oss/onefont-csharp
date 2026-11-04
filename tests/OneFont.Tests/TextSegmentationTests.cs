@@ -93,4 +93,54 @@ public class TextSegmentationTests
         Assert.Equal(1, TextSegmentation.GetGraphemeLength("\uD800"));
         Assert.Equal(0, TextSegmentation.GetGraphemeLength(""));
     }
+
+    [Fact]
+    public void WordBoundariesJoinContractionsAndNumbersAndSplitSpaces()
+    {
+        Assert.Equal([0, 5, 6, 8], TextSegmentation.GetWordBoundaries("can't go"));
+        Assert.Equal([0, 4, 5, 6, 7, 8], TextSegmentation.GetWordBoundaries("3.14 x,y"));
+        Assert.Equal([0], TextSegmentation.GetWordBoundaries(""));
+        Assert.Equal([0, 1, 2], TextSegmentation.GetWordBoundaries("\uD800a"));
+        Assert.Equal([0, 2], TextSegmentation.GetWordBoundaries("\U0001F600"));
+    }
+
+    [Fact]
+    public void SentenceBoundariesFollowTerminatorsAndKeepTrailingSpace()
+    {
+        Assert.Equal([0, 4, 7], TextSegmentation.GetSentenceBoundaries("Hi. Yo!"));
+        Assert.Equal([0, 12], TextSegmentation.GetSentenceBoundaries("It is 3.5 ok"));
+        Assert.Equal([0], TextSegmentation.GetSentenceBoundaries(""));
+    }
+
+    [Fact]
+    public void WordAndSentenceFillAndStepMatchTheArrayFormAndValidateArguments()
+    {
+        const string text = "One two. Three, 4.5 four!";
+        byte[] starts = new byte[text.Length + 1];
+        TextSegmentation.FillWordStarts(text, starts);
+        Assert.Equal(TextSegmentation.GetWordBoundaries(text), Enumerable.Range(0, starts.Length).Where(i => starts[i] == 1));
+        TextSegmentation.FillSentenceStarts(text, starts);
+        Assert.Equal(TextSegmentation.GetSentenceBoundaries(text), Enumerable.Range(0, starts.Length).Where(i => starts[i] == 1));
+        Assert.Equal(text.Length, TextSegmentation.GetNextWordBoundary(text, text.Length));
+        Assert.Equal(3, TextSegmentation.GetNextWordBoundary(text, 0));
+        Assert.Equal(9, TextSegmentation.GetNextSentenceBoundary(text, 0));
+        Assert.Throws<ArgumentException>(() => TextSegmentation.FillWordStarts(text, new byte[text.Length]));
+        Assert.Throws<ArgumentException>(() => TextSegmentation.FillSentenceStarts(text, new byte[text.Length]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => TextSegmentation.GetNextWordBoundary(text, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => TextSegmentation.GetNextSentenceBoundary(text, text.Length + 1));
+    }
+
+    [Fact]
+    public void HostileRunsStayLinear()
+    {
+        // A million combining marks, flags, spaces after a full stop and quotes: each must finish at once (rules WB4, WB15, SB9, SB8).
+        foreach (string unit in new[] { "a\u0301", "\U0001F1E9", ". ", ")\"", "1,", "a.", "a'" })
+        {
+            string text = string.Concat(Enumerable.Repeat(unit, 250_000));
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            int words = TextSegmentation.GetWordBoundaries(text).Length;
+            int sentences = TextSegmentation.GetSentenceBoundaries(text).Length;
+            Assert.True(clock.Elapsed < TimeSpan.FromSeconds(10), $"{unit}: {words} words, {sentences} sentences took {clock.Elapsed}");
+        }
+    }
 }

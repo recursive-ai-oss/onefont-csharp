@@ -10,7 +10,7 @@
 
 - **Fonts.** TrueType (`glyf`), OpenType with CFF outlines and TrueType Collections: `cmap`, `head`, `hhea`, `hmtx`, `OS/2`, `name`, `post`, `kern`, GDEF. Every read is bounds-checked; damaged fonts raise `FontFormatException` or, for layout tables, are ignored.
 - **Shaping.** The OpenType GSUB (types 1 to 8) and GPOS (types 1 to 9) engine with every lookup flag, features and BCP 47 language, and script shapers for Arabic (with Syriac and N'Ko), the Indic scripts, the Universal Shaping Engine scripts (Khmer, Myanmar, Sinhala, Tibetan, Balinese, Javanese and more), and Thai and Lao. Work, depth and growth budgets keep hostile fonts cheap.
-- **Unicode.** UAX #9 bidi (levels and visual order), UAX #14 line break opportunities and UAX #29 grapheme boundaries, on Unicode 17 data, passing the official conformance files.
+- **Unicode.** UAX #9 bidi (levels and visual order), UAX #14 line break opportunities and UAX #29 grapheme, word and sentence boundaries, on Unicode 17 data, passing the official conformance files.
 - **Fallback.** A chain of faces; each grapheme cluster is shaped with the first face that has its character, using that face's own tables.
 - **Outlines.** Glyph outlines as move, line, quadratic and cubic segments through a small sink interface.
 
@@ -40,6 +40,8 @@ int[] visual = TextShaping.GetVisualOrder(levels);
 // Where a line may end, and where a user-perceived character ends.
 LineBreakOpportunity[] breaks = TextSegmentation.GetLineBreakOpportunities("well-known words");
 int[] graphemes = TextSegmentation.GetGraphemeBoundaries("e\u0301a");
+int[] words = TextSegmentation.GetWordBoundaries("It's 3.5 o'clock.");
+int[] sentences = TextSegmentation.GetSentenceBoundaries("Hello there. How are you?");
 
 // A face chain shapes each cluster with the first face that has its character.
 var chain = new FontFallbackChain([latin, cjk]);
@@ -80,7 +82,7 @@ Targets `net10.0`. No runtime dependencies.
 ## Quality
 
 - The shaper is compared with SixLabors.Fonts 2.1.3, used as a black box through its public API in the tests, on Latin, Greek, Cyrillic, Arabic, Hebrew and 17 complex scripts (1,042 cases); every difference is listed with its reason.
-- `LineBreakTest.txt`, `GraphemeBreakTest.txt`, `BidiTest.txt` and `BidiCharacterTest.txt` of Unicode 17 pass in full.
+- `LineBreakTest.txt`, `GraphemeBreakTest.txt`, `WordBreakTest.txt`, `SentenceBreakTest.txt`, `BidiTest.txt` and `BidiCharacterTest.txt` of Unicode 17 pass in full.
 - Hand-assembled GSUB and GPOS tables test every lookup type, format and flag.
 - A fuzz target (`fuzz/`) runs hostile fonts and text through the whole public surface under libFuzzer.
 
