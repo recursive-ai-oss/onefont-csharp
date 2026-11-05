@@ -4,11 +4,12 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
-## [1.4.0-preview.1]
+## [1.4.0] - 2026-11-05
 
 - Added UAX #29 word and sentence boundaries to `TextSegmentation`, next to the grapheme API: `GetWordBoundaries`, `FillWordStarts` and `GetNextWordBoundary` (section 4), and `GetSentenceBoundaries`, `FillSentenceStarts` and `GetNextSentenceBoundary` (section 5). They follow the default rules with no tailoring on the Unicode 17.0.0 data, and `WordBreakTest.txt` and `SentenceBreakTest.txt` of that release pass in full. Both walk the text once, in time linear in its length.
 - The table generator now also produces the Word_Break and Sentence_Break tables and copies the two new conformance files; it records the SHA-256 of its inputs in the generated file.
 - Existing behaviour and output are unchanged.
+- Package validation against the last published version (1.3.0) runs on every pack.
 
 ## [1.3.0] - 2026-10-24
 
@@ -34,6 +35,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - First version. Fonts: TrueType, OpenType with CFF outlines, TrueType Collections. Shaping: GSUB and GPOS with every lookup type and flag; Arabic, Indic, Universal Shaping Engine, Thai and Lao shapers. Unicode 17: bidi levels and order (UAX #9), line break opportunities (UAX #14), grapheme boundaries (UAX #29). Font fallback chain. Glyph outlines through a sink.
 - `TextShaping.ShapeRun` returns clusters that start at offset 0 and follow each other to the end of the text, even when the shaper drops characters (a joiner before an Indic letter).
 
+[1.4.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.4.0
 [1.3.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.3.0
 [1.2.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.2.0
 [1.1.0]: https://github.com/recursive-ai-oss/onefont-csharp/releases/tag/v1.1.0
