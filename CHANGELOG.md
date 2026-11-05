@@ -4,6 +4,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+- Documentation: `docs/shaping.md` describes the word and sentence boundary API, and its `ShapedRun` section names `GlyphStart` (it said `FirstGlyph`). The package description mentions word and sentence boundaries. Package validation is set in one place.
+
 ## [1.4.0] - 2026-11-05
 
 - Added UAX #29 word and sentence boundaries to `TextSegmentation`, next to the grapheme API: `GetWordBoundaries`, `FillWordStarts` and `GetNextWordBoundary` (section 4), and `GetSentenceBoundaries`, `FillSentenceStarts` and `GetNextSentenceBoundary` (section 5). They follow the default rules with no tailoring on the Unicode 17.0.0 data, and `WordBreakTest.txt` and `SentenceBreakTest.txt` of that release pass in full. Both walk the text once, in time linear in its length.

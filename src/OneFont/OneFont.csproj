@@ -4,11 +4,9 @@
     <AssemblyName>$(LibName)</AssemblyName>
     <RootNamespace>$(LibName)</RootNamespace>
     <PackageId>$(PackagePrefix)$(LibName)</PackageId>
-    <Description>Fonts and text shaping with no dependency beyond .NET: loads TrueType, OpenType (CFF) and TrueType Collection fonts, shapes text with OpenType GSUB and GPOS (Arabic, Indic, Southeast Asian and universal shapers), and provides the Unicode bidirectional, line breaking and grapheme algorithms and font fallback.</Description>
+    <Description>Fonts and text shaping with no dependency beyond .NET: loads TrueType, OpenType (CFF) and TrueType Collection fonts, shapes text with OpenType GSUB and GPOS (Arabic, Indic, Southeast Asian and universal shapers), and provides the Unicode bidirectional, line breaking, grapheme, word and sentence boundary algorithms and font fallback.</Description>
     <IsAotCompatible>true</IsAotCompatible>
     <IsTrimmable>true</IsTrimmable>
-    <EnablePackageValidation>true</EnablePackageValidation>
-    <PackageValidationBaselineVersion>1.3.0</PackageValidationBaselineVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>font;text;shaping;opentype;truetype;unicode;bidi;nativeaot;trimmable</PackageTags>
